@@ -16,7 +16,6 @@ import {
   ShieldCheck,
   Activity,
   Sliders,
-  Menu,
   MousePointerClick,
   Play,
   Pause,
@@ -24,8 +23,7 @@ import {
   Settings,
   Waves,
   ArrowDown,
-  ArrowUp,
-  Scale
+  ArrowUp
 } from 'lucide-react';
 
 // Helper to load scripts dynamically
@@ -48,9 +46,8 @@ export default function App() {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isAnimating, setIsAnimating] = useState(false);
   const [isPrintView, setIsPrintView] = useState(false);
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
 
-  // Total slides is now 9
+  // Total slides is 9
   const totalSlides = 9;
 
   const sections = [
@@ -59,7 +56,7 @@ export default function App() {
     { id: 2, title: "Байланыс" },
     { id: 3, title: "Визуализация" },
     { id: 4, title: "Қауіпсіздік" },
-    { id: 5, title: "Электр Тогы" }, // NEW SLIDE INSERTED HERE
+    { id: 5, title: "Электр Тогы" },
     { id: 6, title: "Динамика" },
     { id: 7, title: "Баллистика" },
     { id: 8, title: "Архимед" }
@@ -71,7 +68,6 @@ export default function App() {
       setTimeout(() => {
         setCurrentSlide(index);
         setIsAnimating(false);
-        setIsMenuOpen(false);
       }, 400);
     }
   };
@@ -224,17 +220,13 @@ function SlideContent({ index, onNext }) {
     case 2: return <MathPhysicsConnection />;
     case 3: return <SimVizSlide />;
     case 4: return <SimSafeSlide />;
-    case 5: return <ElectricCurrentSimulation />; // New Slide
+    case 5: return <ElectricCurrentSimulation />;
     case 6: return <SimDynamicSlide />;
     case 7: return <ProjectileMotionSim />;
     case 8: return <ArchimedesSimulation />;
     default: return null;
   }
 }
-
-// ... IntroSlide, TheTriadSlide, MathPhysicsConnection, SimVizSlide, SimSafeSlide remain the same ...
-// For brevity, assuming these components are defined exactly as before.
-// I will include them to ensure the file is complete and runnable.
 
 function IntroSlide({ onNext }) {
   return (
@@ -306,9 +298,6 @@ function TheTriadSlide() {
             </div>
             <h3 className={`text-2xl font-bold mb-4 ${card.color}`}>{card.title}</h3>
             <p className="text-slate-600 text-lg leading-relaxed">{card.desc}</p>
-            <div className="mt-6 flex items-center text-sm font-bold text-slate-400 group-hover:text-slate-800 transition-colors">
-              Толығырақ <ChevronRight size={16} className="ml-1" />
-            </div>
           </div>
         ))}
       </div>
@@ -439,7 +428,7 @@ function SimSafeSlide() {
   );
 }
 
-// --- NEW SLIDE: ELECTRIC CURRENT SIMULATION ---
+// ELECTRIC CURRENT SIMULATION
 function ElectricCurrentSimulation() {
   const mountRef = useRef(null);
   const [voltage, setVoltage] = useState(60);
@@ -465,9 +454,10 @@ function ElectricCurrentSimulation() {
   useEffect(() => {
     let THREE, OrbitControls;
     let scene, camera, renderer, controls;
-    let electrons = [];
     let gate;
     let animationId;
+    // Electrons array to track positions
+    let electrons = [];
 
     const init = async () => {
       await loadScript('https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js');
@@ -548,7 +538,6 @@ function ElectricCurrentSimulation() {
       const electronGeometry = new THREE.SphereGeometry(0.25, 8, 8);
       const electronMaterial = new THREE.MeshBasicMaterial({ color: 0x00ffff });
       
-      // Use canvas for sprite to avoid external texture loading issues
       const canvas = document.createElement('canvas');
       canvas.width = 32; canvas.height = 32;
       const context = canvas.getContext('2d');
@@ -651,10 +640,6 @@ function ElectricCurrentSimulation() {
         let instCurrent = totalDriftX * 2; 
         if (instCurrent < 0) instCurrent = 0;
         physicsRef.current.smoothedCurrent += (instCurrent - physicsRef.current.smoothedCurrent) * 0.1;
-        
-        // Update React state occasionally to avoid excessive re-renders (e.g. every 10 frames or just rely on ref for sync if needed, but here we update for UI)
-        // Since this loop is fast, we'll throttle or just update a ref and have a separate interval for UI, 
-        // BUT for simplicity in this demo we will update a ref and let a setInterval update the UI state.
         
         gate.scale.setScalar(1 + Math.sin(Date.now() * 0.005) * 0.05);
         controls.update();
@@ -1164,7 +1149,7 @@ function ProjectileMotionSim() {
   );
 }
 
-// 8th Slide: Archimedes Simulation (Corrected Physics)
+// 8th Slide: Archimedes Simulation
 function ArchimedesSimulation() {
   const mountRef = useRef(null);
   const [mass, setMass] = useState(5);
@@ -1381,8 +1366,6 @@ function ArchimedesSimulation() {
             }
             
             const Fg = mass * g;
-            // Corrected Buoyancy Formula without multiplier
-            // Fb = rho_fluid * Volume_displaced * g
             const Fb = rho * (volume * ratio) * g; 
 
             physicsRef.current.gravityForce = Fg;
