@@ -1,418 +1,1570 @@
-<!DOCTYPE html>
-<html lang="kk">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Өткізгіштегі электр тогы - 3D Визуализация</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        body { margin: 0; overflow: hidden; background-color: #0f172a; color: white; font-family: sans-serif; }
-        #canvas-container { width: 100vw; height: 100vh; }
-        .control-panel {
-            position: absolute;
-            top: 20px;
-            left: 20px;
-            background: rgba(30, 41, 59, 0.95);
-            padding: 24px;
-            border-radius: 16px;
-            width: 320px;
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
-            border: 1px solid #334155;
-            backdrop-filter: blur(8px);
-            max-height: 90vh;
-            overflow-y: auto;
-        }
-        .slider-container { margin-bottom: 20px; }
-        input[type="range"] {
-            width: 100%;
-            cursor: pointer;
-            accent-color: #3b82f6;
-            height: 6px;
-            border-radius: 3px;
-            background: #475569;
-        }
-        .legend-item { display: flex; align-items: center; margin-bottom: 8px; font-size: 0.9em; }
-        .dot { width: 12px; height: 12px; border-radius: 50%; margin-right: 10px; }
-        .dot-electron { background-color: #00ffff; box-shadow: 0 0 5px #00ffff; }
-        .dot-collision { background-color: #ffffff; box-shadow: 0 0 8px #ffffff; }
-        .dot-pass { background-color: #4ade80; box-shadow: 0 0 8px #4ade80; } /* Жасыл нүкте */
-        .dot-ion { background-color: #ff4444; opacity: 0.6; }
+import React, { useState, useEffect, useRef } from 'react';
+import { 
+  Atom, 
+  Calculator, 
+  Brain, 
+  ChevronRight, 
+  ChevronLeft, 
+  Target, 
+  Zap, 
+  Award,
+  Lightbulb,
+  Printer,
+  X,
+  FlaskConical,
+  Magnet,
+  ShieldCheck,
+  Activity,
+  Sliders,
+  Menu,
+  MousePointerClick,
+  Play,
+  Pause,
+  RotateCcw,
+  Settings,
+  Waves,
+  ArrowDown,
+  ArrowUp,
+  Scale
+} from 'lucide-react';
 
-        .meter-box {
-            background: #000;
-            border: 2px solid #333;
-            border-radius: 8px;
-            padding: 15px;
-            margin-bottom: 20px;
-            text-align: center;
-            position: relative;
-            overflow: hidden;
-        }
-        .meter-value {
-            font-family: 'Courier New', monospace;
-            font-size: 2.5em;
-            font-weight: bold;
-            color: #4ade80;
-            text-shadow: 0 0 10px rgba(74, 222, 128, 0.5);
-        }
-        .meter-label {
-            color: #94a3b8;
-            font-size: 0.9em;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            margin-bottom: 5px;
-        }
-        .status-led {
-            width: 8px;
-            height: 8px;
-            background-color: #ef4444;
-            border-radius: 50%;
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            box-shadow: 0 0 5px #ef4444;
-        }
-        .status-led.active {
-            background-color: #4ade80;
-            box-shadow: 0 0 5px #4ade80;
-        }
-    </style>
-</head>
-<body>
+// Helper to load scripts dynamically
+const loadScript = (src) => {
+  return new Promise((resolve, reject) => {
+    if (document.querySelector(`script[src="${src}"]`)) {
+      resolve();
+      return;
+    }
+    const script = document.createElement('script');
+    script.src = src;
+    script.onload = resolve;
+    script.onerror = reject;
+    document.head.appendChild(script);
+  });
+};
 
-    <div class="control-panel">
+// Main Application Component
+export default function App() {
+  const [currentSlide, setCurrentSlide] = useState(0);
+  const [isAnimating, setIsAnimating] = useState(false);
+  const [isPrintView, setIsPrintView] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+
+  // Total slides is now 9
+  const totalSlides = 9;
+
+  const sections = [
+    { id: 0, title: "Басты бет" },
+    { id: 1, title: "Үштік Одақ" },
+    { id: 2, title: "Байланыс" },
+    { id: 3, title: "Визуализация" },
+    { id: 4, title: "Қауіпсіздік" },
+    { id: 5, title: "Электр Тогы" }, // NEW SLIDE INSERTED HERE
+    { id: 6, title: "Динамика" },
+    { id: 7, title: "Баллистика" },
+    { id: 8, title: "Архимед" }
+  ];
+
+  const changeSlide = (index) => {
+    if (index >= 0 && index < totalSlides && !isAnimating && index !== currentSlide) {
+      setIsAnimating(true);
+      setTimeout(() => {
+        setCurrentSlide(index);
+        setIsAnimating(false);
+        setIsMenuOpen(false);
+      }, 400);
+    }
+  };
+
+  const nextSlide = () => changeSlide(currentSlide + 1);
+  const prevSlide = () => changeSlide(currentSlide - 1);
+
+  useEffect(() => {
+    if (isPrintView) return;
+    const handleKeyDown = (e) => {
+      // Prevent arrow scrolling behavior when interacting with sliders in simulation
+      if (e.target.tagName === 'INPUT' && e.target.type === 'range') return;
+
+      if (e.key === 'ArrowRight' || e.key === 'ArrowDown') nextSlide();
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') prevSlide();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [currentSlide, isAnimating, isPrintView]);
+
+  const [particles, setParticles] = useState([]);
+  useEffect(() => {
+    const newParticles = Array.from({ length: 20 }).map((_, i) => ({
+      id: i,
+      left: `${Math.random() * 100}%`,
+      top: `${Math.random() * 100}%`,
+      animationDuration: `${Math.random() * 20 + 10}s`,
+      opacity: Math.random() * 0.4,
+      size: Math.random() * 6 + 2
+    }));
+    setParticles(newParticles);
+  }, []);
+
+  if (isPrintView) {
+    return (
+      <div className="min-h-screen bg-white p-8 font-sans text-slate-900">
+        <div className="fixed top-0 left-0 w-full bg-white/90 backdrop-blur border-b p-4 flex justify-between items-center z-50 print:hidden">
+          <div className="font-bold text-xl">PDF Нұсқасы</div>
+          <div className="flex gap-4">
+            <button 
+              onClick={() => setIsPrintView(false)}
+              className="px-4 py-2 rounded-lg border border-slate-300 hover:bg-slate-50 flex items-center gap-2"
+            >
+              <X size={18} /> Сайтқа оралу
+            </button>
+            <button 
+              onClick={() => window.print()}
+              className="px-6 py-2 rounded-lg bg-blue-600 text-white font-bold hover:bg-blue-700 flex items-center gap-2"
+            >
+              <Printer size={18} /> Басып шығару / Жүктеу
+            </button>
+          </div>
+        </div>
+        <div className="h-24 print:hidden"></div>
+        <div className="max-w-5xl mx-auto space-y-12">
+          {sections.map((section) => (
+            <div key={section.id} className="print:break-after-page mb-12 border-b pb-12 last:border-0">
+              <div className="text-sm text-slate-400 mb-4 uppercase tracking-widest">{section.title}</div>
+              <SlideContent index={section.id} onNext={() => {}} />
+            </div>
+          ))}
+        </div>
+        <style>{`@media print { body { -webkit-print-color-adjust: exact; } }`}</style>
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative w-full h-screen overflow-hidden bg-slate-50 font-sans selection:bg-blue-200 selection:text-blue-900">
+      
+      {/* 1. Dynamic Full Screen Background */}
+      <div className="absolute inset-0 z-0 pointer-events-none">
+        <div className="absolute inset-0 bg-gradient-to-br from-slate-50 via-white to-blue-50"></div>
+        {/* Animated Orbs */}
+        <div className="absolute top-[-10%] right-[-5%] w-[40vw] h-[40vw] bg-blue-200/20 rounded-full blur-[100px] animate-blob"></div>
+        <div className="absolute bottom-[-10%] left-[-10%] w-[35vw] h-[35vw] bg-cyan-200/20 rounded-full blur-[80px] animate-blob animation-delay-2000"></div>
+        <div className="absolute top-[40%] left-[20%] w-[25vw] h-[25vw] bg-purple-200/20 rounded-full blur-[60px] animate-blob animation-delay-4000"></div>
         
-        <div class="meter-box">
-            <div id="statusLed" class="status-led"></div>
-            <div class="meter-label">Ток күші (I)</div>
-            <div id="amperageValue" class="meter-value">0.00 A</div>
-        </div>
+        {/* Particles */}
+        {particles.map((p) => (
+          <div
+            key={p.id}
+            className="absolute bg-gradient-to-tr from-blue-400 to-cyan-400 rounded-full blur-[1px]"
+            style={{
+              left: p.left,
+              top: p.top,
+              width: `${p.size}px`,
+              height: `${p.size}px`,
+              opacity: p.opacity,
+              animation: `float ${p.animationDuration} infinite linear`
+            }}
+          />
+        ))}
+      </div>
 
-        <h2 class="text-xl font-bold mb-4 text-blue-400 border-b border-gray-600 pb-2">Баптаулар</h2>
-        
-        <div class="slider-container">
-            <div class="flex justify-between items-center mb-1">
-                <label class="text-sm font-medium">Кернеу (U)</label>
-                <span id="voltageVal" class="text-xs text-blue-300 font-mono">60 V</span>
-            </div>
-            <input type="range" id="voltageSlider" min="0" max="100" value="60">
-            <p class="text-xs text-gray-400 mt-1">Электрондарды итеруші күш</p>
+      {/* 3. Main Content Area (Full Screen) */}
+      <main className="relative z-10 w-full h-full flex flex-col justify-center items-center px-4 md:px-16 pt-0">
+        <div className={`w-full max-w-7xl transition-all duration-700 transform ${isAnimating ? 'opacity-0 translate-y-8 scale-95' : 'opacity-100 translate-y-0 scale-100'}`}>
+          <SlideContent index={currentSlide} onNext={nextSlide} />
         </div>
+      </main>
 
-        <div class="slider-container">
-            <div class="flex justify-between items-center mb-1">
-                <label class="text-sm font-medium">Кедергі (R)</label>
-                <span id="resistanceVal" class="text-xs text-red-300 font-mono">20 Ω</span>
-            </div>
-            <input type="range" id="resistanceSlider" min="0" max="100" value="20">
-            <p class="text-xs text-gray-400 mt-1">Кристалдық тормен соқтығысу</p>
-        </div>
+      {/* 4. Floating Navigation Controls (Side Arrows) */}
+      <button 
+        onClick={prevSlide}
+        disabled={currentSlide === 0}
+        className={`absolute left-4 top-1/2 -translate-y-1/2 p-3 rounded-full backdrop-blur-md border border-white/50 shadow-lg transition-all duration-300 z-20 hidden md:block ${currentSlide === 0 ? 'opacity-0 pointer-events-none' : 'bg-white/30 hover:bg-white text-slate-600 hover:text-blue-600 hover:scale-110'}`}
+      >
+        <ChevronLeft size={32} />
+      </button>
 
-        <div class="slider-container">
-            <div class="flex justify-between items-center mb-1">
-                <label class="text-sm font-medium">Температура (T)</label>
-                <span id="tempVal" class="text-xs text-yellow-300 font-mono">30 K</span>
-            </div>
-            <input type="range" id="tempSlider" min="0" max="100" value="30">
-            <p class="text-xs text-gray-400 mt-1">Жылулық қозғалыс</p>
-        </div>
+      <button 
+        onClick={nextSlide}
+        disabled={currentSlide === totalSlides - 1}
+        className={`absolute right-4 top-1/2 -translate-y-1/2 p-3 rounded-full backdrop-blur-md border border-white/50 shadow-lg transition-all duration-300 z-20 hidden md:block ${currentSlide === totalSlides - 1 ? 'opacity-0 pointer-events-none' : 'bg-white/30 hover:bg-white text-slate-600 hover:text-blue-600 hover:scale-110'}`}
+      >
+        <ChevronRight size={32} />
+      </button>
 
-        <div class="mt-4 border-t border-gray-600 pt-4">
-            <h3 class="font-bold text-sm mb-2 text-gray-300">Шартты белгілер:</h3>
-            <div class="legend-item">
-                <div class="dot dot-pass"></div>
-                <span class="text-green-400 font-bold">Ток ағыны (Заряд өтті!)</span>
-            </div>
-            <div class="legend-item">
-                <div class="dot dot-electron"></div>
-                <span class="text-gray-300">Электрон (e⁻)</span>
-            </div>
-            <div class="legend-item">
-                <div class="dot dot-collision"></div>
-                <span class="text-gray-300">Соқтығысу (Кедергі)</span>
-            </div>
-            
-            <p class="text-xs text-green-300 mt-3 italic bg-slate-800 p-2 rounded">
-                Жасыл шеңбер - бақылау нүктесі. Электрон осы шеңберді қиып өткенде жасыл болып жанады. Бұл токтың өткенін білдіреді.
-            </p>
-        </div>
+      {/* 5. Progress Indicator (Bottom) */}
+      <div className="absolute bottom-8 left-0 w-full flex justify-center gap-3 z-20 pointer-events-auto">
+        {sections.map((sec) => (
+          <button
+            key={sec.id}
+            onClick={() => changeSlide(sec.id)}
+            className={`h-1.5 rounded-full transition-all duration-500 ${currentSlide === sec.id ? 'w-12 bg-blue-600' : 'w-2 bg-slate-300 hover:bg-slate-400'}`}
+          />
+        ))}
+      </div>
+
+      <style>{`
+        @keyframes float { 0% { transform: translateY(0px); } 50% { transform: translateY(-20px); } 100% { transform: translateY(0px); } }
+        @keyframes blob { 0% { transform: translate(0px, 0px) scale(1); } 33% { transform: translate(30px, -50px) scale(1.1); } 66% { transform: translate(-20px, 20px) scale(0.9); } 100% { transform: translate(0px, 0px) scale(1); } }
+        .animate-blob { animation: blob 10s infinite; }
+        .animation-delay-2000 { animation-delay: 2s; }
+        .animation-delay-4000 { animation-delay: 4s; }
+        .animate-fadeIn { animation: fadeIn 0.3s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        .perspective-1000 { perspective: 1000px; }
+      `}</style>
     </div>
+  );
+}
 
-    <div id="canvas-container"></div>
+// Router Component to choose slides
+function SlideContent({ index, onNext }) {
+  switch (index) {
+    case 0: return <IntroSlide onNext={onNext} />;
+    case 1: return <TheTriadSlide />;
+    case 2: return <MathPhysicsConnection />;
+    case 3: return <SimVizSlide />;
+    case 4: return <SimSafeSlide />;
+    case 5: return <ElectricCurrentSimulation />; // New Slide
+    case 6: return <SimDynamicSlide />;
+    case 7: return <ProjectileMotionSim />;
+    case 8: return <ArchimedesSimulation />;
+    default: return null;
+  }
+}
 
-    <script type="importmap">
-        {
-            "imports": {
-                "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
-                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+// ... IntroSlide, TheTriadSlide, MathPhysicsConnection, SimVizSlide, SimSafeSlide remain the same ...
+// For brevity, assuming these components are defined exactly as before.
+// I will include them to ensure the file is complete and runnable.
+
+function IntroSlide({ onNext }) {
+  return (
+    <div className="flex flex-col md:flex-row items-center justify-between gap-12 w-full min-h-[60vh]">
+      <div className="flex-1 text-center md:text-left space-y-8">
+        <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-blue-50 border border-blue-100 text-blue-700 text-sm font-bold tracking-wider uppercase animate-pulse">
+          <Award size={16} /> ҰБТ Дайындық 2025
+        </div>
+        <div className="space-y-4">
+          <h1 className="text-5xl md:text-7xl lg:text-8xl font-black text-slate-900 tracking-tight leading-none">
+            Жетістік <br/>
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 via-cyan-500 to-blue-600 bg-300% animate-gradient">Формуласы</span>
+          </h1>
+          <p className="text-xl md:text-2xl text-slate-500 font-light max-w-lg leading-relaxed">
+            Физика, Математика және Жасанды Интеллект — болашақ мамандығыңның іргетасы.
+          </p>
+        </div>
+        <div className="flex flex-col md:flex-row gap-4 justify-center md:justify-start pt-4">
+          <button onClick={onNext} className="px-8 py-4 bg-slate-900 text-white rounded-2xl font-bold text-lg hover:bg-blue-600 hover:shadow-xl hover:shadow-blue-500/20 transition-all transform hover:-translate-y-1 active:scale-95 flex items-center justify-center gap-3">
+            Бастау <ChevronRight size={20} />
+          </button>
+          <button className="px-8 py-4 bg-white text-slate-700 border border-slate-200 rounded-2xl font-bold text-lg hover:bg-slate-50 hover:border-slate-300 transition-all flex items-center justify-center gap-2">
+            Толығырақ білу
+          </button>
+        </div>
+      </div>
+      <div className="flex-1 w-full flex justify-center relative">
+        <div className="relative w-[300px] h-[300px] md:w-[500px] md:h-[500px]">
+           <div className="absolute inset-0 bg-gradient-to-tr from-blue-500 to-cyan-400 rounded-full opacity-10 animate-blob"></div>
+           <div className="absolute inset-4 border border-slate-200 rounded-full animate-[spin_20s_linear_infinite]"></div>
+           <div className="absolute inset-12 border border-slate-200 rounded-full animate-[spin_15s_linear_infinite_reverse]"></div>
+           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex gap-4">
+              <div className="w-24 h-32 bg-white rounded-2xl shadow-2xl flex flex-col items-center justify-center p-2 transform -translate-y-8 animate-float">
+                 <Atom size={40} className="text-blue-500 mb-2"/>
+                 <span className="font-bold text-slate-700">Phys</span>
+              </div>
+              <div className="w-24 h-32 bg-slate-900 rounded-2xl shadow-2xl flex flex-col items-center justify-center p-2 transform translate-y-4 animate-float animation-delay-2000">
+                 <Calculator size={40} className="text-white mb-2"/>
+                 <span className="font-bold text-white">Math</span>
+              </div>
+              <div className="w-24 h-32 bg-gradient-to-br from-blue-600 to-purple-600 rounded-2xl shadow-2xl flex flex-col items-center justify-center p-2 transform -translate-y-4 animate-float animation-delay-4000">
+                 <Brain size={40} className="text-white mb-2"/>
+                 <span className="font-bold text-white">AI</span>
+              </div>
+           </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TheTriadSlide() {
+  const cards = [
+    { title: "Математика", icon: <Calculator size={40} />, color: "text-blue-600", bg: "bg-blue-50", border: "border-blue-100", desc: "Ғылымның тілі және логикалық ойлаудың іргетасы." },
+    { title: "Физика", icon: <Atom size={40} />, color: "text-cyan-600", bg: "bg-cyan-50", border: "border-cyan-100", desc: "Табиғат заңдары мен әлемнің жұмыс істеу принципі." },
+    { title: "Жасанды Интеллект", icon: <Brain size={40} />, color: "text-purple-600", bg: "bg-purple-50", border: "border-purple-100", desc: "Болашақ құралы. Деректер мен алгоритмдердің күші." }
+  ];
+  return (
+    <div className="w-full max-w-6xl">
+      <div className="text-center mb-16">
+        <h2 className="text-4xl md:text-5xl font-bold text-slate-900 mb-4">Негізгі Үш Бағыт</h2>
+        <p className="text-slate-500 text-lg">Бұл пәндер бір-бірімен тығыз байланысты және болашақ технологиялардың негізі.</p>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+        {cards.map((card, idx) => (
+          <div key={idx} className={`p-8 rounded-3xl border ${card.border} bg-white shadow-xl shadow-slate-200/50 hover:shadow-2xl hover:shadow-blue-500/10 transition-all duration-300 hover:-translate-y-2 group cursor-pointer`}>
+            <div className={`w-16 h-16 rounded-2xl ${card.bg} ${card.color} flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300`}>
+              {card.icon}
+            </div>
+            <h3 className={`text-2xl font-bold mb-4 ${card.color}`}>{card.title}</h3>
+            <p className="text-slate-600 text-lg leading-relaxed">{card.desc}</p>
+            <div className="mt-6 flex items-center text-sm font-bold text-slate-400 group-hover:text-slate-800 transition-colors">
+              Толығырақ <ChevronRight size={16} className="ml-1" />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function MathPhysicsConnection() {
+  const [activeZone, setActiveZone] = useState('center');
+  const zones = {
+    math: { title: "Математика", desc: "Туынды, Интеграл, Векторлар — физикалық құбылыстарды сипаттау құралы." },
+    physics: { title: "Физика", desc: "Механика, Электродинамика — математикалық формулалардың өмірдегі көрінісі." },
+    center: { title: "Инженерлік Ойлау", desc: "Нағыз маман екі саланы біріктіріп, күрделі мәселелерді шешеді." }
+  };
+  return (
+    <div className="flex flex-col lg:flex-row items-center justify-between gap-16 w-full max-w-6xl">
+      <div className="flex-1 space-y-8">
+        <h2 className="text-4xl font-bold text-slate-900">Пәнаралық Байланыс</h2>
+        <p className="text-lg text-slate-500">Физика мен Математиканың түйісу нүктесінде нағыз инженерия туындайды.</p>
+        <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-2xl shadow-blue-500/5 relative overflow-hidden group transition-all duration-300 hover:border-blue-200">
+          <div className={`absolute top-0 left-0 w-1.5 h-full transition-colors duration-300 ${activeZone === 'math' ? 'bg-blue-600' : activeZone === 'physics' ? 'bg-cyan-500' : 'bg-purple-600'}`}></div>
+          <h3 className="text-2xl font-bold text-slate-800 mb-4 flex items-center gap-3">
+            <Lightbulb size={28} className={activeZone === 'math' ? 'text-blue-600' : activeZone === 'physics' ? 'text-cyan-500' : 'text-purple-600'} /> {zones[activeZone].title}
+          </h3>
+          <p className="text-slate-600 text-lg leading-relaxed">{zones[activeZone].desc}</p>
+        </div>
+        <div className="flex gap-4">
+            <div className="px-4 py-2 bg-slate-100 rounded-lg text-slate-600 text-sm font-medium">SI жүйесі</div>
+            <div className="px-4 py-2 bg-slate-100 rounded-lg text-slate-600 text-sm font-medium">Формулалар</div>
+            <div className="px-4 py-2 bg-slate-100 rounded-lg text-slate-600 text-sm font-medium">Графиктер</div>
+        </div>
+      </div>
+      <div className="flex-1 flex justify-center items-center relative h-[400px] w-[400px]">
+        <div className={`absolute w-64 h-64 rounded-full border-4 border-blue-200 bg-blue-50/80 backdrop-blur-sm top-0 left-0 flex items-center justify-center cursor-pointer transition-all duration-500 ${activeZone === 'math' ? 'z-20 scale-105 border-blue-500 shadow-2xl' : 'z-10 hover:border-blue-300 opacity-60'}`} onClick={() => setActiveZone('math')}>
+          <span className={`text-xl font-bold transition-colors -translate-x-6 -translate-y-6 ${activeZone === 'math' ? 'text-blue-700' : 'text-blue-400'}`}>Math</span>
+        </div>
+        <div className={`absolute w-64 h-64 rounded-full border-4 border-cyan-200 bg-cyan-50/80 backdrop-blur-sm bottom-0 right-0 flex items-center justify-center cursor-pointer transition-all duration-500 ${activeZone === 'physics' ? 'z-20 scale-105 border-cyan-500 shadow-2xl' : 'z-10 hover:border-cyan-300 opacity-60'}`} onClick={() => setActiveZone('physics')}>
+          <span className={`text-xl font-bold transition-colors translate-x-6 translate-y-6 ${activeZone === 'physics' ? 'text-cyan-700' : 'text-cyan-400'}`}>Physics</span>
+        </div>
+        <div className={`absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-32 h-32 rounded-full bg-white z-30 cursor-pointer flex items-center justify-center transition-all duration-500 ${activeZone === 'center' ? 'scale-125 border-4 border-purple-500 shadow-2xl ring-4 ring-purple-100' : 'border-2 border-slate-200 scale-100 hover:scale-110'}`} onClick={() => setActiveZone('center')}>
+          <Target size={32} className={activeZone === 'center' ? 'text-purple-600' : 'text-slate-300'} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SimVizSlide() {
+  return (
+    <div className="w-full max-w-7xl relative">
+      <div className="absolute inset-0 z-0 overflow-hidden opacity-10 pointer-events-none">
+        <svg className="absolute top-0 left-0 w-full h-full" xmlns="http://www.w3.org/2000/svg">
+          <path d="M0,100 Q400,200 800,100 T1600,100" fill="none" stroke="#0891b2" strokeWidth="2" strokeDasharray="10,10" className="animate-[flow_30s_linear_infinite]" />
+        </svg>
+      </div>
+      <div className="grid md:grid-cols-2 gap-16 items-center relative z-10">
+        <div className="space-y-8 order-2 md:order-1">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 bg-blue-100 rounded-2xl flex items-center justify-center text-blue-600">
+              <Magnet size={24} />
+            </div>
+            <span className="text-blue-600 font-bold tracking-widest uppercase text-sm">Симуляция #1</span>
+          </div>
+          <h2 className="text-4xl md:text-5xl font-bold text-slate-900 leading-tight">Көрінбейтінді <br/><span className="text-blue-600">Көру</span></h2>
+          <p className="text-lg text-slate-600 leading-relaxed">
+            Оқушы кітаптан "электр тогының ағысы" немесе "магнит өрісінің күш сызықтары" туралы оқығанда, оны елестету қиынға соғуы мүмкін. Симуляциялар бұл процестерді жандандырады.
+          </p>
+          <div className="flex gap-4">
+            <div className="flex items-center gap-2 text-slate-700 font-medium bg-white px-4 py-2 rounded-lg border shadow-sm">
+                <div className="w-2 h-2 bg-green-500 rounded-full"></div> Электрондар
+            </div>
+            <div className="flex items-center gap-2 text-slate-700 font-medium bg-white px-4 py-2 rounded-lg border shadow-sm">
+                <div className="w-2 h-2 bg-blue-500 rounded-full"></div> Өрістер
+            </div>
+          </div>
+        </div>
+        <div className="order-1 md:order-2 flex justify-center">
+          <div className="relative w-full aspect-square max-w-[500px] bg-gradient-to-tr from-blue-600 to-cyan-500 rounded-[2rem] shadow-2xl flex items-center justify-center p-8 group overflow-hidden">
+             <div className="absolute inset-0 opacity-20 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]"></div>
+             <Zap size={120} className="text-white drop-shadow-2xl relative z-10 animate-pulse" />
+             <div className="absolute top-10 right-10 w-16 h-16 bg-white/20 backdrop-blur-md rounded-2xl border border-white/30 animate-float"></div>
+             <div className="absolute bottom-10 left-10 w-24 h-24 bg-white/20 backdrop-blur-md rounded-full border border-white/30 animate-float animation-delay-2000"></div>
+             <div className="absolute bottom-6 right-6 bg-white/90 backdrop-blur px-4 py-2 rounded-lg text-sm font-bold text-blue-900 shadow-lg transform group-hover:scale-105 transition-transform">Интерактивті</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SimSafeSlide() {
+  return (
+    <div className="w-full max-w-7xl relative">
+      <div className="grid md:grid-cols-2 gap-16 items-center">
+        <div className="flex justify-center">
+           <div className="relative w-full aspect-square max-w-[500px] bg-slate-900 rounded-[2rem] shadow-2xl flex items-center justify-center p-8 overflow-hidden group">
+              <div className="absolute inset-0 border-2 border-slate-700 m-4 rounded-3xl opacity-50"></div>
+              <FlaskConical size={100} className="text-green-400 relative z-10" />
+              <div className="absolute top-8 left-8 flex gap-2">
+                 <div className="w-3 h-3 bg-red-500 rounded-full animate-ping"></div>
+                 <span className="text-xs text-red-400 font-mono">HIGH VOLTAGE</span>
+              </div>
+              <div className="absolute bottom-8 w-full text-center">
+                 <span className="bg-green-500/20 text-green-400 px-4 py-1 rounded-full text-sm font-mono border border-green-500/50">SAFETY: 100%</span>
+              </div>
+           </div>
+        </div>
+        <div className="space-y-8">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 bg-green-100 rounded-2xl flex items-center justify-center text-green-600">
+              <ShieldCheck size={24} />
+            </div>
+            <span className="text-green-600 font-bold tracking-widest uppercase text-sm">Симуляция #2</span>
+          </div>
+          <h2 className="text-4xl md:text-5xl font-bold text-slate-900 leading-tight">Қауіпсіз <br/><span className="text-green-600">Эксперимент</span></h2>
+          <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-lg">
+            <p className="text-lg text-slate-600 leading-relaxed mb-4">
+              Ядролық реакциялар, жоғары кернеулі тізбектер немесе идеалды жағдайларды (үйкеліссіз бет, вакуум) шынайы зертханада жасау қиын немесе қауіпті.
+            </p>
+            <div className="flex items-center gap-3 text-slate-800 font-bold">
+               <span className="w-6 h-6 rounded-full bg-green-100 text-green-600 flex items-center justify-center text-xs">✓</span>
+               Қателік жасаудан қорықпа!
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// --- NEW SLIDE: ELECTRIC CURRENT SIMULATION ---
+function ElectricCurrentSimulation() {
+  const mountRef = useRef(null);
+  const [voltage, setVoltage] = useState(60);
+  const [resistance, setResistance] = useState(20);
+  const [temperature, setTemperature] = useState(30);
+  const [current, setCurrent] = useState(0);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+
+  // Physics state ref for animation loop
+  const physicsRef = useRef({
+    voltage: 60,
+    resistance: 20,
+    temperature: 30,
+    smoothedCurrent: 0
+  });
+
+  useEffect(() => {
+    physicsRef.current.voltage = voltage;
+    physicsRef.current.resistance = resistance;
+    physicsRef.current.temperature = temperature;
+  }, [voltage, resistance, temperature]);
+
+  useEffect(() => {
+    let THREE, OrbitControls;
+    let scene, camera, renderer, controls;
+    let electrons = [];
+    let gate;
+    let animationId;
+
+    const init = async () => {
+      await loadScript('https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js');
+      await loadScript('https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js');
+      
+      THREE = window.THREE;
+      OrbitControls = window.THREE.OrbitControls;
+
+      if (!mountRef.current) return;
+
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x0f172a);
+      scene.fog = new THREE.FogExp2(0x0f172a, 0.02);
+
+      camera = new THREE.PerspectiveCamera(75, mountRef.current.clientWidth / mountRef.current.clientHeight, 0.1, 1000);
+      camera.position.set(0, 15, 35);
+
+      renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(mountRef.current.clientWidth, mountRef.current.clientHeight);
+      renderer.setPixelRatio(window.devicePixelRatio);
+      mountRef.current.appendChild(renderer.domElement);
+
+      controls = new OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+
+      const ambientLight = new THREE.AmbientLight(0x404040, 2);
+      scene.add(ambientLight);
+      const pointLight = new THREE.PointLight(0xffffff, 2, 100);
+      pointLight.position.set(10, 10, 10);
+      scene.add(pointLight);
+
+      // Wire
+      const wireLength = 60;
+      const wireRadius = 8;
+      const wireGeometry = new THREE.CylinderGeometry(wireRadius, wireRadius, wireLength, 32, 1, true);
+      const wireMaterial = new THREE.MeshPhysicalMaterial({
+        color: 0xb87333, metalness: 0.6, roughness: 0.4, transparent: true, opacity: 0.15, side: THREE.DoubleSide
+      });
+      const wire = new THREE.Mesh(wireGeometry, wireMaterial);
+      wire.rotation.z = Math.PI / 2;
+      scene.add(wire);
+
+      const edgeGeometry = new THREE.EdgesGeometry(wireGeometry);
+      const edgeMaterial = new THREE.LineBasicMaterial({ color: 0xb87333, opacity: 0.3, transparent: true });
+      const wireEdges = new THREE.LineSegments(edgeGeometry, edgeMaterial);
+      wireEdges.rotation.z = Math.PI / 2;
+      scene.add(wireEdges);
+
+      // Gate
+      const gateGeometry = new THREE.RingGeometry(wireRadius, wireRadius + 1.5, 32);
+      const gateMaterial = new THREE.MeshBasicMaterial({ color: 0x4ade80, side: THREE.DoubleSide, transparent: true, opacity: 0.8 });
+      gate = new THREE.Mesh(gateGeometry, gateMaterial);
+      gate.rotation.y = Math.PI / 2;
+      scene.add(gate);
+
+      const gateInner = new THREE.Mesh(new THREE.CircleGeometry(wireRadius, 32), new THREE.MeshBasicMaterial({ color: 0x4ade80, side: THREE.DoubleSide, transparent: true, opacity: 0.05 }));
+      gateInner.rotation.y = Math.PI / 2;
+      scene.add(gateInner);
+
+      // Ions
+      const ionGeometry = new THREE.SphereGeometry(0.3, 8, 8);
+      const ionMaterial = new THREE.MeshBasicMaterial({ color: 0xff4444, opacity: 0.4, transparent: true });
+      const spacing = 3.5;
+      for (let x = -wireLength / 2; x <= wireLength / 2; x += spacing) {
+        for (let y = -wireRadius + 1; y <= wireRadius - 1; y += spacing) {
+          for (let z = -wireRadius + 1; z <= wireRadius - 1; z += spacing) {
+            if (Math.sqrt(y*y + z*z) < wireRadius - 0.5) {
+              const ion = new THREE.Mesh(ionGeometry, ionMaterial);
+              ion.position.set(x, y, z);
+              scene.add(ion);
             }
+          }
         }
-    </script>
+      }
 
-    <script type="module">
-        import * as THREE from 'three';
-        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+      // Electrons
+      const electronCount = 350;
+      const electronGeometry = new THREE.SphereGeometry(0.25, 8, 8);
+      const electronMaterial = new THREE.MeshBasicMaterial({ color: 0x00ffff });
+      
+      // Use canvas for sprite to avoid external texture loading issues
+      const canvas = document.createElement('canvas');
+      canvas.width = 32; canvas.height = 32;
+      const context = canvas.getContext('2d');
+      const gradient = context.createRadialGradient(16, 16, 0, 16, 16, 16);
+      gradient.addColorStop(0, 'rgba(255,255,255,1)');
+      gradient.addColorStop(0.2, 'rgba(0,255,255,1)');
+      gradient.addColorStop(0.5, 'rgba(0,0,0,0)');
+      context.fillStyle = gradient;
+      context.fillRect(0,0,32,32);
+      const glowTexture = new THREE.CanvasTexture(canvas);
+      
+      const spriteMaterial = new THREE.SpriteMaterial({ map: glowTexture, color: 0x00ffff, transparent: true, blending: THREE.AdditiveBlending });
 
-        // 1. Сахнаны құру
-        const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x0f172a); 
-        scene.fog = new THREE.FogExp2(0x0f172a, 0.02);
+      for (let i = 0; i < electronCount; i++) {
+        const group = new THREE.Group();
+        const mesh = new THREE.Mesh(electronGeometry, electronMaterial.clone());
+        group.add(mesh);
+        const glow = new THREE.Sprite(spriteMaterial.clone());
+        glow.scale.set(1.5, 1.5, 1.0);
+        group.add(glow);
 
-        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-        camera.position.set(0, 15, 35); // Камераны сәл жақындаттым
+        const x = (Math.random() - 0.5) * wireLength;
+        const r = Math.random() * (wireRadius - 1);
+        const theta = Math.random() * Math.PI * 2;
+        const y = r * Math.cos(theta);
+        const z = r * Math.sin(theta);
+        group.position.set(x, y, z);
+        scene.add(group);
+        electrons.push({ group, mesh, glow, collisionFrames: 0, passFrames: 0 });
+      }
 
-        const renderer = new THREE.WebGLRenderer({ antialias: true });
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.setPixelRatio(window.devicePixelRatio);
-        document.getElementById('canvas-container').appendChild(renderer.domElement);
-
-        const controls = new OrbitControls(camera, renderer.domElement);
-        controls.enableDamping = true;
-
-        const ambientLight = new THREE.AmbientLight(0x404040, 2);
-        scene.add(ambientLight);
-
-        const pointLight = new THREE.PointLight(0xffffff, 2, 100);
-        pointLight.position.set(10, 10, 10);
-        scene.add(pointLight);
-
-        // 2. Объектілер
-
-        const wireLength = 60;
-        const wireRadius = 8;
-        const wireGeometry = new THREE.CylinderGeometry(wireRadius, wireRadius, wireLength, 32, 1, true);
-        const wireMaterial = new THREE.MeshPhysicalMaterial({
-            color: 0xb87333,
-            metalness: 0.6,
-            roughness: 0.4,
-            transparent: true,
-            opacity: 0.15,
-            side: THREE.DoubleSide
-        });
-        const wire = new THREE.Mesh(wireGeometry, wireMaterial);
-        wire.rotation.z = Math.PI / 2;
-        scene.add(wire);
-
-        const edgeGeometry = new THREE.EdgesGeometry(wireGeometry);
-        const edgeMaterial = new THREE.LineBasicMaterial({ color: 0xb87333, opacity: 0.3, transparent: true });
-        const wireEdges = new THREE.LineSegments(edgeGeometry, edgeMaterial);
-        wireEdges.rotation.z = Math.PI / 2;
-        scene.add(wireEdges);
-
-        // *** ЖАҢА: Қима жазықтық (Бақылау қақпасы) ***
-        // Сыртқы сақина
-        const gateGeometry = new THREE.RingGeometry(wireRadius, wireRadius + 1.5, 32);
-        const gateMaterial = new THREE.MeshBasicMaterial({ color: 0x4ade80, side: THREE.DoubleSide, transparent: true, opacity: 0.8 });
-        const gate = new THREE.Mesh(gateGeometry, gateMaterial);
-        gate.rotation.y = Math.PI / 2; // Y осі бойынша бұру, сымға перпендикуляр болу үшін
-        scene.add(gate);
+      const animate = () => {
+        animationId = requestAnimationFrame(animate);
         
-        // Ішкі мөлдір диск (визуалды акцент үшін)
-        const gateInnerGeo = new THREE.CircleGeometry(wireRadius, 32);
-        const gateInnerMat = new THREE.MeshBasicMaterial({ color: 0x4ade80, side: THREE.DoubleSide, transparent: true, opacity: 0.05 });
-        const gateInner = new THREE.Mesh(gateInnerGeo, gateInnerMat);
-        gateInner.rotation.y = Math.PI / 2;
-        scene.add(gateInner);
+        const { voltage, resistance, temperature } = physicsRef.current;
+        const driftSpeedBase = voltage * 0.005; 
+        const randomSpeed = temperature * 0.002;
+        const collisionProb = resistance * 0.001; 
+        let totalDriftX = 0; 
 
-        // Тор иондары
-        const ions = [];
-        const ionGeometry = new THREE.SphereGeometry(0.3, 8, 8);
-        const ionMaterial = new THREE.MeshBasicMaterial({ color: 0xff4444, opacity: 0.4, transparent: true });
-        
-        const spacing = 3.5; 
-        
-        for (let x = -wireLength / 2; x <= wireLength / 2; x += spacing) {
-            for (let y = -wireRadius + 1; y <= wireRadius - 1; y += spacing) {
-                for (let z = -wireRadius + 1; z <= wireRadius - 1; z += spacing) {
-                    if (Math.sqrt(y*y + z*z) < wireRadius - 0.5) {
-                        const ion = new THREE.Mesh(ionGeometry, ionMaterial);
-                        ion.position.set(x, y, z);
-                        scene.add(ion);
-                        ions.push(ion);
-                    }
+        electrons.forEach(ed => {
+            const p = ed.group.position;
+            const oldX = p.x;
+            let dx = 0;
+
+            if (ed.collisionFrames > 0) {
+                ed.collisionFrames--;
+                dx = -driftSpeedBase * 0.2; 
+                p.x += dx; 
+                if (ed.collisionFrames === 0) {
+                    ed.mesh.material.color.setHex(0x00ffff);
+                    ed.glow.material.color.setHex(0x00ffff);
+                    ed.glow.scale.set(1.5, 1.5, 1.0);
                 }
-            }
-        }
-
-        // Электрондар
-        const electronCount = 350;
-        const electrons = [];
-        const electronGeometry = new THREE.SphereGeometry(0.25, 8, 8);
-        const electronMaterial = new THREE.MeshBasicMaterial({ color: 0x00ffff });
-
-        const textureLoader = new THREE.TextureLoader();
-        const glowTexture = textureLoader.load('https://threejs.org/examples/textures/sprites/spark1.png');
-        const spriteMaterial = new THREE.SpriteMaterial({ 
-            map: glowTexture, 
-            color: 0x00ffff, 
-            transparent: true, 
-            blending: THREE.AdditiveBlending 
-        });
-
-        for (let i = 0; i < electronCount; i++) {
-            const electronGroup = new THREE.Group();
-            
-            const mesh = new THREE.Mesh(electronGeometry, electronMaterial.clone()); 
-            electronGroup.add(mesh);
-
-            const glow = new THREE.Sprite(spriteMaterial.clone());
-            glow.scale.set(1.5, 1.5, 1.0);
-            electronGroup.add(glow);
-
-            const x = (Math.random() - 0.5) * wireLength;
-            const r = Math.random() * (wireRadius - 1);
-            const theta = Math.random() * Math.PI * 2;
-            const y = r * Math.cos(theta);
-            const z = r * Math.sin(theta);
-
-            electronGroup.position.set(x, y, z);
-            scene.add(electronGroup);
-            
-            electrons.push({
-                group: electronGroup,
-                mesh: mesh,
-                glow: glow,
-                collisionFrames: 0,
-                passFrames: 0 // Қақпадан өту эффектісі
-            });
-        }
-
-        // 3. Логика және Интерфейс
-
-        let voltage = 60;
-        let resistance = 20;
-        let temperature = 30;
-        let smoothedCurrent = 0;
-
-        const voltageSlider = document.getElementById('voltageSlider');
-        const resistanceSlider = document.getElementById('resistanceSlider');
-        const tempSlider = document.getElementById('tempSlider');
-        
-        const voltageVal = document.getElementById('voltageVal');
-        const resistanceVal = document.getElementById('resistanceVal');
-        const tempVal = document.getElementById('tempVal');
-        const amperageValue = document.getElementById('amperageValue');
-        const statusLed = document.getElementById('statusLed');
-
-        function updateUI() {
-            voltageVal.textContent = voltage + " V";
-            resistanceVal.textContent = resistance + " Ω";
-            tempVal.textContent = temperature + " K";
-        }
-
-        voltageSlider.addEventListener('input', (e) => { voltage = parseInt(e.target.value); updateUI(); });
-        resistanceSlider.addEventListener('input', (e) => { resistance = parseInt(e.target.value); updateUI(); });
-        tempSlider.addEventListener('input', (e) => { temperature = parseInt(e.target.value); updateUI(); });
-
-        function animate() {
-            requestAnimationFrame(animate);
-
-            const driftSpeedBase = voltage * 0.005; 
-            const randomSpeed = temperature * 0.002;
-            const collisionProb = resistance * 0.001; 
-
-            let totalDriftX = 0; 
-
-            electrons.forEach(electronData => {
-                const p = electronData.group.position;
-                const oldX = p.x; // Ескі координатты сақтау (қиып өтуді тексеру үшін)
-                let dx = 0;
-
-                // 1. Соқтығысу және өту эффектілері
-                if (electronData.collisionFrames > 0) {
-                    electronData.collisionFrames--;
-                    dx = -driftSpeedBase * 0.2; 
-                    p.x += dx; 
-                    
-                    if (electronData.collisionFrames === 0) {
-                        // Эффект біткенде қалыпты түске қайтару
-                        electronData.mesh.material.color.setHex(0x00ffff);
-                        electronData.glow.material.color.setHex(0x00ffff);
-                        electronData.glow.scale.set(1.5, 1.5, 1.0);
-                    }
-                } else if (electronData.passFrames > 0) {
-                     // Қақпадан өту эффектісі
-                    electronData.passFrames--;
+            } else if (ed.passFrames > 0) {
+                ed.passFrames--;
+                dx = driftSpeedBase;
+                p.x += dx;
+                if (ed.passFrames === 0) {
+                    ed.mesh.material.color.setHex(0x00ffff);
+                    ed.glow.material.color.setHex(0x00ffff);
+                    ed.glow.scale.set(1.5, 1.5, 1.0);
+                }
+            } else {
+                if (voltage > 0 && Math.random() < collisionProb) {
+                    ed.collisionFrames = 15;
+                    ed.mesh.material.color.setHex(0xffffff);
+                    ed.glow.material.color.setHex(0xffffff);
+                    ed.glow.scale.set(3.0, 3.0, 1.0);
+                } else {
                     dx = driftSpeedBase;
                     p.x += dx;
-                    
-                    if (electronData.passFrames === 0) {
-                        electronData.mesh.material.color.setHex(0x00ffff);
-                        electronData.glow.material.color.setHex(0x00ffff);
-                        electronData.glow.scale.set(1.5, 1.5, 1.0);
-                    }
-                } else {
-                    // Кедергіге тап болу
-                    if (voltage > 0 && Math.random() < collisionProb) {
-                        electronData.collisionFrames = 15;
-                        electronData.mesh.material.color.setHex(0xffffff); // Ақ
-                        electronData.glow.material.color.setHex(0xffffff);
-                        electronData.glow.scale.set(3.0, 3.0, 1.0);
-                    } else {
-                        // Еркін дрейф
-                        dx = driftSpeedBase;
-                        p.x += dx;
-                    }
                 }
-
-                // *** ЖАҢА: Қақпадан өтуді тексеру ***
-                // Егер электрон бұрын 0-ден кіші болып, қазір 0-ден үлкен не тең болса, ол ортадан өтті
-                if (oldX < 0 && p.x >= 0) {
-                    electronData.passFrames = 10;
-                    electronData.mesh.material.color.setHex(0x4ade80); // Жасыл
-                    electronData.glow.material.color.setHex(0x4ade80);
-                    electronData.glow.scale.set(2.5, 2.5, 1.0);
-                }
-
-                // 2. Жылулық қозғалыс
-                p.x += (Math.random() - 0.5) * randomSpeed;
-                p.y += (Math.random() - 0.5) * randomSpeed;
-                p.z += (Math.random() - 0.5) * randomSpeed;
-
-                // 3. Шекара және Цикл
-                const radiusSq = p.y * p.y + p.z * p.z;
-                if (radiusSq > (wireRadius - 1) * (wireRadius - 1)) {
-                    const angle = Math.atan2(p.z, p.y);
-                    p.y -= Math.cos(angle) * 0.5;
-                    p.z -= Math.sin(angle) * 0.5;
-                }
-
-                if (p.x > wireLength / 2) {
-                    p.x = -wireLength / 2;
-                } else if (p.x < -wireLength / 2) {
-                    p.x = wireLength / 2;
-                }
-
-                totalDriftX += dx;
-            });
-
-            // Ток күшін есептеу
-            let currentInstant = totalDriftX * 2; 
-            if (currentInstant < 0) currentInstant = 0;
-            smoothedCurrent += (currentInstant - smoothedCurrent) * 0.1;
-            amperageValue.innerText = smoothedCurrent.toFixed(2) + " A";
-            
-            if (smoothedCurrent > 0.1) {
-                statusLed.classList.add('active');
-            } else {
-                statusLed.classList.remove('active');
             }
 
-            // Қақпа пульсациясы (визуалды әдемілік үшін)
-            gate.scale.setScalar(1 + Math.sin(Date.now() * 0.005) * 0.05);
+            if (oldX < 0 && p.x >= 0) {
+                ed.passFrames = 10;
+                ed.mesh.material.color.setHex(0x4ade80);
+                ed.glow.material.color.setHex(0x4ade80);
+                ed.glow.scale.set(2.5, 2.5, 1.0);
+            }
 
-            controls.update();
-            renderer.render(scene, camera);
-        }
+            p.x += (Math.random() - 0.5) * randomSpeed;
+            p.y += (Math.random() - 0.5) * randomSpeed;
+            p.z += (Math.random() - 0.5) * randomSpeed;
 
-        window.addEventListener('resize', () => {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
+            const radiusSq = p.y * p.y + p.z * p.z;
+            if (radiusSq > (wireRadius - 1) * (wireRadius - 1)) {
+                const angle = Math.atan2(p.z, p.y);
+                p.y -= Math.cos(angle) * 0.5;
+                p.z -= Math.sin(angle) * 0.5;
+            }
+
+            if (p.x > wireLength / 2) p.x = -wireLength / 2;
+            else if (p.x < -wireLength / 2) p.x = wireLength / 2;
+
+            totalDriftX += dx;
         });
 
-        animate();
+        let instCurrent = totalDriftX * 2; 
+        if (instCurrent < 0) instCurrent = 0;
+        physicsRef.current.smoothedCurrent += (instCurrent - physicsRef.current.smoothedCurrent) * 0.1;
+        
+        // Update React state occasionally to avoid excessive re-renders (e.g. every 10 frames or just rely on ref for sync if needed, but here we update for UI)
+        // Since this loop is fast, we'll throttle or just update a ref and have a separate interval for UI, 
+        // BUT for simplicity in this demo we will update a ref and let a setInterval update the UI state.
+        
+        gate.scale.setScalar(1 + Math.sin(Date.now() * 0.005) * 0.05);
+        controls.update();
+        renderer.render(scene, camera);
+      };
 
-    </script>
-</body>
-</html>
+      animate();
+    };
+
+    init();
+
+    // UI Update Loop
+    const interval = setInterval(() => {
+        setCurrent(physicsRef.current.smoothedCurrent);
+    }, 100);
+
+    return () => {
+        cancelAnimationFrame(animationId);
+        clearInterval(interval);
+        if (renderer) {
+            renderer.dispose();
+            if (mountRef.current && renderer.domElement) {
+                mountRef.current.removeChild(renderer.domElement);
+            }
+        }
+    };
+  }, []);
+
+  return (
+    <div className="w-full h-[85vh] max-w-7xl relative bg-slate-900 rounded-3xl shadow-2xl overflow-hidden flex border border-slate-700">
+      
+      {/* Sidebar */}
+      <div className={`absolute z-20 h-full bg-slate-800/95 backdrop-blur border-r border-slate-700 transition-all duration-300 flex flex-col ${sidebarOpen ? 'w-80 translate-x-0' : 'w-80 -translate-x-full'}`}>
+        <div className="p-6 space-y-8 overflow-y-auto flex-1">
+            <div className="flex items-center gap-3 text-slate-100 mb-2">
+                <Zap className="text-yellow-400" />
+                <h3 className="font-bold text-lg">Электр Тогы</h3>
+            </div>
+
+            {/* Meter */}
+            <div className="bg-black border-2 border-slate-700 rounded-lg p-4 text-center relative overflow-hidden">
+                <div className={`absolute top-2 right-2 w-2 h-2 rounded-full ${current > 0.1 ? 'bg-green-400 shadow-[0_0_5px_rgba(74,222,128,1)]' : 'bg-red-500 shadow-[0_0_5px_rgba(239,68,68,1)]'}`}></div>
+                <div className="text-slate-400 text-xs uppercase tracking-widest mb-1">Ток Күші (I)</div>
+                <div className="font-mono text-3xl font-bold text-green-400 shadow-green-400/50 drop-shadow-md">{current.toFixed(2)} A</div>
+            </div>
+
+            {/* Controls */}
+            <div className="space-y-6">
+                <div>
+                    <label className="flex justify-between text-sm font-medium text-slate-300 mb-1">
+                        <span>Кернеу (U)</span>
+                        <span className="text-blue-400 font-mono">{voltage} V</span>
+                    </label>
+                    <input type="range" min="0" max="100" value={voltage} onChange={(e) => setVoltage(Number(e.target.value))} className="w-full accent-blue-500 h-2 bg-slate-700 rounded-lg cursor-pointer" />
+                    <p className="text-xs text-slate-500 mt-1">Электрондарды итеруші күш</p>
+                </div>
+                <div>
+                    <label className="flex justify-between text-sm font-medium text-slate-300 mb-1">
+                        <span>Кедергі (R)</span>
+                        <span className="text-red-400 font-mono">{resistance} Ω</span>
+                    </label>
+                    <input type="range" min="0" max="100" value={resistance} onChange={(e) => setResistance(Number(e.target.value))} className="w-full accent-red-500 h-2 bg-slate-700 rounded-lg cursor-pointer" />
+                    <p className="text-xs text-slate-500 mt-1">Кристалдық тормен соқтығысу</p>
+                </div>
+                <div>
+                    <label className="flex justify-between text-sm font-medium text-slate-300 mb-1">
+                        <span>Температура (T)</span>
+                        <span className="text-yellow-400 font-mono">{temperature} K</span>
+                    </label>
+                    <input type="range" min="0" max="100" value={temperature} onChange={(e) => setTemperature(Number(e.target.value))} className="w-full accent-yellow-500 h-2 bg-slate-700 rounded-lg cursor-pointer" />
+                    <p className="text-xs text-slate-500 mt-1">Жылулық қозғалыс</p>
+                </div>
+            </div>
+
+            {/* Legend */}
+            <div className="bg-slate-900/50 p-3 rounded-xl border border-slate-700 space-y-2 text-xs">
+                <div className="flex items-center gap-2 text-slate-300">
+                    <div className="w-2 h-2 rounded-full bg-cyan-400 shadow-[0_0_5px_cyan]"></div> Электрон (e⁻)
+                </div>
+                <div className="flex items-center gap-2 text-slate-300">
+                    <div className="w-2 h-2 rounded-full bg-green-400 shadow-[0_0_5px_lime]"></div> Ток ағыны (Заряд өтті!)
+                </div>
+                <div className="flex items-center gap-2 text-slate-300">
+                    <div className="w-2 h-2 rounded-full bg-white shadow-[0_0_5px_white]"></div> Соқтығысу (Кедергі)
+                </div>
+            </div>
+        </div>
+      </div>
+
+      <button onClick={() => setSidebarOpen(!sidebarOpen)} className={`absolute top-4 z-30 p-2 bg-slate-800 text-slate-400 hover:text-white rounded-r-lg border-y border-r border-slate-700 transition-all duration-300 ${sidebarOpen ? 'left-80' : 'left-0'}`}>
+        {sidebarOpen ? <ChevronLeft /> : <Settings />}
+      </button>
+
+      {/* Canvas */}
+      <div ref={mountRef} className={`flex-1 relative bg-[#0f172a] transition-all duration-300 ${sidebarOpen ? 'ml-80' : 'ml-0'} cursor-move`} />
+    </div>
+  );
+}
+
+function SimDynamicSlide() {
+  return (
+    <div className="w-full max-w-7xl relative">
+      <div className="grid md:grid-cols-2 gap-16 items-center">
+        <div className="space-y-8">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 bg-indigo-100 rounded-2xl flex items-center justify-center text-indigo-600">
+              <Sliders size={24} />
+            </div>
+            <span className="text-indigo-600 font-bold tracking-widest uppercase text-sm">Симуляция #3</span>
+          </div>
+          <h2 className="text-4xl md:text-5xl font-bold text-slate-900 leading-tight">Динамикалық <br/><span className="text-indigo-600">Бақылау</span></h2>
+          <p className="text-lg text-slate-600 leading-relaxed">
+             Формуладағы бір шаманың өзгеруі екіншісіне қалай әсер ететінін (мысалы, өткізгіштің ұзындығын арттырғанда кедергінің өзгеруі) нақты уақыт режимінде көруге болады.
+          </p>
+          <div className="grid grid-cols-2 gap-4">
+             <div className="bg-indigo-50 p-4 rounded-xl">
+                <div className="text-sm text-indigo-400 font-bold mb-1">ФОРМУЛА</div>
+                <div className="text-xl font-mono text-slate-800 font-bold">I = U / R</div>
+             </div>
+             <div className="bg-white border border-slate-200 p-4 rounded-xl flex items-center justify-center gap-2">
+                <MousePointerClick size={20} className="text-slate-400"/>
+                <span className="text-slate-600 font-medium">Слайдерді жылжыт</span>
+             </div>
+          </div>
+        </div>
+        <div className="flex justify-center perspective-1000">
+           <div className="relative w-full max-w-[500px] bg-white rounded-3xl shadow-2xl border border-slate-200 p-8 transform rotate-y-6 transition-transform hover:rotate-0 duration-500">
+              <div className="space-y-6">
+                 <div className="flex justify-between items-center border-b pb-4">
+                    <span className="font-bold text-slate-700">Тізбек Параметрлері</span>
+                    <Activity size={20} className="text-indigo-500"/>
+                 </div>
+                 <div className="space-y-4">
+                    <div>
+                        <div className="flex justify-between text-sm font-bold text-slate-500 mb-2">
+                            <span>Кернеу (U)</span>
+                            <span>220 V</span>
+                        </div>
+                        <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden">
+                            <div className="w-[80%] h-full bg-indigo-500 rounded-full"></div>
+                        </div>
+                    </div>
+                    <div>
+                        <div className="flex justify-between text-sm font-bold text-slate-500 mb-2">
+                            <span>Кедергі (R)</span>
+                            <span>50 Ω</span>
+                        </div>
+                        <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden">
+                            <div className="w-[40%] h-full bg-cyan-500 rounded-full"></div>
+                        </div>
+                    </div>
+                 </div>
+                 <div className="bg-slate-900 rounded-xl p-6 text-center text-white">
+                    <div className="text-xs text-slate-400 uppercase tracking-widest mb-1">Нәтиже (Ток күші)</div>
+                    <div className="text-4xl font-mono font-bold text-green-400">4.4 A</div>
+                 </div>
+              </div>
+           </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ProjectileMotionSim() {
+  const [velocity, setVelocity] = useState(50);
+  const [angle, setAngle] = useState(45);
+  const [gravity, setGravity] = useState(9.81);
+  const [isRunning, setIsRunning] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  
+  const [stats, setStats] = useState({
+    time: 0,
+    height: 0,
+    distance: 0,
+    maxHeight: 0,
+    range: 0,
+    flightTime: 0
+  });
+
+  const canvasRef = useRef(null);
+  const requestRef = useRef(null);
+  const startTimeRef = useRef(0);
+  const stateRef = useRef({
+    t: 0,
+    scale: 5,
+    origin: { x: 60, y: 0 }
+  });
+
+  const calculatePredictions = (v, a, g) => {
+    const rad = a * Math.PI / 180;
+    const hMax = (Math.pow(v * Math.sin(rad), 2)) / (2 * g);
+    const range = (Math.pow(v, 2) * Math.sin(2 * rad)) / g;
+    const flightTime = (2 * v * Math.sin(rad)) / g;
+    return { hMax, range, flightTime };
+  };
+
+  const toCanvas = (x, y, canvas) => {
+    const { origin, scale } = stateRef.current;
+    return {
+      x: origin.x + (x * scale),
+      y: origin.y - (y * scale)
+    };
+  };
+
+  const autoScale = (canvas, predictedRange, predictedHMax) => {
+    const availW = canvas.width - 100;
+    const availH = canvas.height - 100;
+    const range = predictedRange || 10;
+    const hmax = predictedHMax || 10;
+    const scaleX = availW / (range * 1.1);
+    const scaleY = availH / (hmax * 1.5);
+    let newScale = Math.min(scaleX, scaleY);
+    stateRef.current.scale = Math.max(0.5, Math.min(newScale, 20));
+  };
+
+  const draw = () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const { t, scale, origin } = stateRef.current;
+
+    const preds = calculatePredictions(velocity, angle, gravity);
+
+    ctx.fillStyle = '#0f172a';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    ctx.strokeStyle = '#1e293b';
+    ctx.lineWidth = 1;
+    const step = preds.range > 200 ? 50 : 10;
+
+    ctx.beginPath();
+    for (let x = 0; x <= preds.range * 1.5; x += step) {
+      const p = toCanvas(x, 0, canvas);
+      if (p.x > canvas.width) break;
+      ctx.moveTo(p.x, 0);
+      ctx.lineTo(p.x, canvas.height);
+      ctx.fillStyle = '#475569';
+      ctx.font = '10px monospace';
+      ctx.fillText(x + 'm', p.x + 2, origin.y + 15);
+    }
+    for (let y = 0; y <= preds.hMax * 2; y += step) {
+      const p = toCanvas(0, y, canvas);
+      if (p.y < 0) break;
+      ctx.moveTo(0, p.y);
+      ctx.lineTo(canvas.width, p.y);
+      if (y > 0) ctx.fillText(y + 'm', origin.x - 25, p.y + 3);
+    }
+    ctx.stroke();
+
+    ctx.strokeStyle = '#94a3b8';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(0, origin.y);
+    ctx.lineTo(canvas.width, origin.y);
+    ctx.moveTo(origin.x, 0);
+    ctx.lineTo(origin.x, canvas.height);
+    ctx.stroke();
+
+    ctx.strokeStyle = 'rgba(100, 116, 139, 0.4)';
+    ctx.setLineDash([5, 5]);
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    const rad = angle * Math.PI / 180;
+    const vx = velocity * Math.cos(rad);
+    const vy0 = velocity * Math.sin(rad);
+    
+    for (let i = 0; i <= 100; i++) {
+        const simT = (preds.flightTime / 100) * i;
+        const simX = vx * simT;
+        const simY = (vy0 * simT) - (0.5 * gravity * simT * simT);
+        const pos = toCanvas(simX, simY, canvas);
+        if (i === 0) ctx.moveTo(pos.x, pos.y);
+        else ctx.lineTo(pos.x, pos.y);
+    }
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    if (t > 0) {
+        ctx.strokeStyle = '#3b82f6';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(origin.x, origin.y);
+        const steps = 100;
+        for(let i=1; i<=steps; i++) {
+            const ct = (t / steps) * i;
+            const cx = vx * ct;
+            const cy = (vy0 * ct) - (0.5 * gravity * ct * ct);
+            const cp = toCanvas(cx, cy, canvas);
+            ctx.lineTo(cp.x, cp.y);
+        }
+        ctx.stroke();
+    }
+
+    const curX = vx * t;
+    const curY = (vy0 * t) - (0.5 * gravity * t * t);
+    const safeY = Math.max(0, curY);
+    const ballPos = toCanvas(curX, safeY, canvas);
+
+    ctx.fillStyle = '#60a5fa';
+    ctx.beginPath();
+    ctx.arc(ballPos.x, ballPos.y, 8, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    const vy = vy0 - (gravity * t);
+    const vScale = 0.5;
+    ctx.strokeStyle = '#22c55e';
+    ctx.beginPath();
+    ctx.moveTo(ballPos.x, ballPos.y);
+    ctx.lineTo(ballPos.x + vx * scale * vScale, ballPos.y - vy * scale * vScale);
+    ctx.stroke();
+  };
+
+  const updateStats = () => {
+      const preds = calculatePredictions(velocity, angle, gravity);
+      const rad = angle * Math.PI / 180;
+      const t = stateRef.current.t;
+      const vx = velocity * Math.cos(rad);
+      const vy0 = velocity * Math.sin(rad);
+      const curX = vx * t;
+      const curY = (vy0 * t) - (0.5 * gravity * t * t);
+      
+      setStats({
+          time: t,
+          height: Math.max(0, curY),
+          distance: curX,
+          maxHeight: preds.hMax,
+          range: preds.range,
+          flightTime: preds.flightTime
+      });
+  };
+
+  const animate = (timestamp) => {
+    if (!startTimeRef.current) startTimeRef.current = timestamp;
+    startTimeRef.current = timestamp; 
+    
+    const preds = calculatePredictions(velocity, angle, gravity);
+    const timeStep = 0.016 * 1.5; 
+    
+    if (stateRef.current.t < preds.flightTime) {
+       stateRef.current.t += timeStep;
+       if (stateRef.current.t > preds.flightTime) stateRef.current.t = preds.flightTime;
+       draw();
+       updateStats();
+       requestRef.current = requestAnimationFrame(animate);
+    } else {
+       setIsRunning(false);
+       updateStats();
+       draw();
+    }
+  };
+
+  useEffect(() => {
+    const handleResize = () => {
+        const canvas = canvasRef.current;
+        if (canvas) {
+            const parent = canvas.parentElement;
+            canvas.width = parent.clientWidth;
+            canvas.height = parent.clientHeight;
+            stateRef.current.origin = { x: 60, y: canvas.height - 60 };
+            const preds = calculatePredictions(velocity, angle, gravity);
+            autoScale(canvas, preds.range, preds.hMax);
+            draw();
+        }
+    };
+    window.addEventListener('resize', handleResize);
+    setTimeout(handleResize, 100);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  useEffect(() => {
+    if (!isRunning) {
+        const preds = calculatePredictions(velocity, angle, gravity);
+        setStats(prev => ({
+            ...prev,
+            maxHeight: preds.hMax,
+            range: preds.range,
+            flightTime: preds.flightTime
+        }));
+        const canvas = canvasRef.current;
+        if(canvas) {
+            autoScale(canvas, preds.range, preds.hMax);
+            draw();
+        }
+    }
+  }, [velocity, angle, gravity]);
+
+  useEffect(() => {
+    if (isRunning) {
+        startTimeRef.current = performance.now();
+        requestRef.current = requestAnimationFrame(animate);
+    } else {
+        cancelAnimationFrame(requestRef.current);
+    }
+    return () => cancelAnimationFrame(requestRef.current);
+  }, [isRunning]);
+
+  const handleReset = () => {
+    setIsRunning(false);
+    stateRef.current.t = 0;
+    const preds = calculatePredictions(velocity, angle, gravity);
+    setStats({
+        time: 0,
+        height: 0,
+        distance: 0,
+        maxHeight: preds.hMax,
+        range: preds.range,
+        flightTime: preds.flightTime
+    });
+    const canvas = canvasRef.current;
+    if(canvas) {
+        autoScale(canvas, preds.range, preds.hMax);
+        draw();
+    }
+  };
+
+  const handleStart = () => {
+    const preds = calculatePredictions(velocity, angle, gravity);
+    if (stateRef.current.t >= preds.flightTime) {
+        stateRef.current.t = 0;
+    }
+    setIsRunning(!isRunning);
+  };
+
+  return (
+    <div className="w-full h-[85vh] max-w-7xl relative bg-slate-900 rounded-3xl shadow-2xl overflow-hidden flex border border-slate-700">
+        <div className={`absolute z-20 h-full bg-slate-800/95 backdrop-blur border-r border-slate-700 transition-all duration-300 flex flex-col ${sidebarOpen ? 'w-80 translate-x-0' : 'w-80 -translate-x-full'}`}>
+            <div className="p-6 space-y-8 overflow-y-auto flex-1">
+                <div className="flex items-center gap-3 text-slate-100 mb-6">
+                    <FlaskConical className="text-blue-400" />
+                    <h3 className="font-bold text-lg">Параметрлер</h3>
+                </div>
+                <div className="space-y-3">
+                    <label className="flex justify-between text-sm font-medium text-slate-300">
+                        <span>Бастапқы жылдамдық</span>
+                        <span className="text-blue-400 font-mono">{velocity} м/с</span>
+                    </label>
+                    <input type="range" min="10" max="150" value={velocity} onChange={(e) => setVelocity(Number(e.target.value))} className="w-full accent-blue-500 h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer" />
+                </div>
+                <div className="space-y-3">
+                    <label className="flex justify-between text-sm font-medium text-slate-300">
+                        <span>Лақтыру бұрышы</span>
+                        <span className="text-emerald-400 font-mono">{angle}°</span>
+                    </label>
+                    <input type="range" min="5" max="85" value={angle} onChange={(e) => setAngle(Number(e.target.value))} className="w-full accent-emerald-500 h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer" />
+                </div>
+                <div className="space-y-3">
+                    <label className="flex justify-between text-sm font-medium text-slate-300">
+                        <span>Еркін түсу үдеуі</span>
+                        <span className="text-purple-400 font-mono">{gravity} м/с²</span>
+                    </label>
+                    <input type="range" min="1.6" max="20" step="0.1" value={gravity} onChange={(e) => setGravity(Number(e.target.value))} className="w-full accent-purple-500 h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer" />
+                    <div className="flex justify-between text-[10px] text-slate-500 px-1 font-mono uppercase">
+                        <span>Moon</span>
+                        <span>Earth</span>
+                        <span>Jupiter</span>
+                    </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3 pt-4">
+                    <button onClick={handleStart} className={`${isRunning ? 'bg-red-600 hover:bg-red-500' : 'bg-blue-600 hover:bg-blue-500'} text-white font-bold py-3 px-4 rounded-xl transition flex justify-center items-center gap-2`}>
+                        {isRunning ? <Pause size={18} /> : <Play size={18} />}
+                        {isRunning ? 'Тоқтату' : 'Бастау'}
+                    </button>
+                    <button onClick={handleReset} className="bg-slate-700 hover:bg-slate-600 text-white font-bold py-3 px-4 rounded-xl transition flex justify-center items-center gap-2">
+                        <RotateCcw size={18} />
+                        Қайтару
+                    </button>
+                </div>
+                <div className="bg-slate-900/80 rounded-xl p-4 border border-slate-700 space-y-2 text-sm">
+                    <div className="flex justify-between">
+                        <span className="text-slate-400">Уақыт:</span>
+                        <span className="font-mono text-white">{stats.time.toFixed(2)} с</span>
+                    </div>
+                    <div className="flex justify-between">
+                        <span className="text-slate-400">Биіктік:</span>
+                        <span className="font-mono text-white">{stats.height.toFixed(2)} м</span>
+                    </div>
+                    <div className="flex justify-between">
+                        <span className="text-slate-400">Қашықтық:</span>
+                        <span className="font-mono text-white">{stats.distance.toFixed(2)} м</span>
+                    </div>
+                    <div className="h-px bg-slate-700 my-2"></div>
+                    <div className="flex justify-between text-yellow-400">
+                        <span>Max Биіктік:</span>
+                        <span className="font-mono font-bold">{stats.maxHeight.toFixed(2)} м</span>
+                    </div>
+                    <div className="flex justify-between text-green-400">
+                        <span>Ұшу қашықтығы:</span>
+                        <span className="font-mono font-bold">{stats.range.toFixed(2)} м</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <button onClick={() => setSidebarOpen(!sidebarOpen)} className={`absolute top-4 z-30 p-2 bg-slate-800 text-slate-400 hover:text-white rounded-r-lg border-y border-r border-slate-700 transition-all duration-300 ${sidebarOpen ? 'left-80' : 'left-0'}`}>
+            {sidebarOpen ? <ChevronLeft /> : <Settings />}
+        </button>
+        <div className={`flex-1 relative bg-[#0f172a] transition-all duration-300 ${sidebarOpen ? 'ml-80' : 'ml-0'}`}>
+            <canvas ref={canvasRef} className="absolute inset-0 block w-full h-full cursor-crosshair" />
+            <div className="absolute top-4 right-6 text-slate-500 font-mono text-xs pointer-events-none select-none">
+                Баллистикалық Қозғалыс Симуляторы v1.0
+            </div>
+        </div>
+    </div>
+  );
+}
+
+// 8th Slide: Archimedes Simulation (Corrected Physics)
+function ArchimedesSimulation() {
+  const mountRef = useRef(null);
+  const [mass, setMass] = useState(5);
+  const [fluidDensity, setFluidDensity] = useState(1000);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  
+  const gravityTextRef = useRef(null);
+  const buoyancyTextRef = useRef(null);
+  
+  const physicsRef = useRef({
+    mass: 5,
+    fluidDensity: 1000,
+    gravityForce: 0,
+    buoyantForce: 0,
+    posY: 10,
+    isDragging: false
+  });
+
+  useEffect(() => {
+    physicsRef.current.mass = mass;
+    physicsRef.current.fluidDensity = fluidDensity;
+  }, [mass, fluidDensity]);
+
+  useEffect(() => {
+    let THREE, OrbitControls;
+    let scene, camera, renderer, controls;
+    let cube, fluidVolume, fluidSurface;
+    let gravityArrow, buoyancyArrow, particles = [];
+    let animationId;
+    
+    let onPointerDown, onPointerMove, onPointerUp;
+
+    const init = async () => {
+      await loadScript('https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js');
+      await loadScript('https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js');
+      
+      THREE = window.THREE;
+      OrbitControls = window.THREE.OrbitControls;
+
+      if (!mountRef.current) return;
+
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0xeef2f5);
+      scene.fog = new THREE.Fog(0xeef2f5, 20, 100);
+
+      camera = new THREE.PerspectiveCamera(45, mountRef.current.clientWidth / mountRef.current.clientHeight, 0.1, 1000);
+      camera.position.set(15, 12, 15);
+
+      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+      renderer.setSize(mountRef.current.clientWidth, mountRef.current.clientHeight);
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      mountRef.current.appendChild(renderer.domElement);
+
+      controls = new OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+      controls.maxPolarAngle = Math.PI / 2 - 0.05;
+      controls.minDistance = 5;
+      controls.maxDistance = 35;
+
+      const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
+      scene.add(ambientLight);
+      const dirLight = new THREE.DirectionalLight(0xffffff, 0.7);
+      dirLight.position.set(10, 20, 10);
+      dirLight.castShadow = true;
+      scene.add(dirLight);
+
+      const floor = new THREE.Mesh(new THREE.PlaneGeometry(100, 100), new THREE.MeshLambertMaterial({ color: 0xffffff }));
+      floor.rotation.x = -Math.PI / 2;
+      floor.receiveShadow = true;
+      scene.add(floor);
+
+      const tankWidth = 6, tankHeight = 8, tankDepth = 6, glassThickness = 0.1;
+      const glassMaterial = new THREE.MeshPhongMaterial({ color: 0xffffff, opacity: 0.2, transparent: true, side: THREE.DoubleSide, shininess: 90 });
+      
+      const createWall = (w, h, d, x, y, z) => {
+        const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), glassMaterial);
+        mesh.position.set(x, y, z);
+        scene.add(mesh);
+      };
+      
+      createWall(tankWidth, glassThickness, tankDepth, 0, glassThickness/2, 0); 
+      createWall(tankWidth, tankHeight, glassThickness, 0, tankHeight/2, tankDepth/2);
+      createWall(tankWidth, tankHeight, glassThickness, 0, tankHeight/2, -tankDepth/2);
+      createWall(glassThickness, tankHeight, tankDepth, -tankWidth/2, tankHeight/2, 0);
+      createWall(glassThickness, tankHeight, tankDepth, tankWidth/2, tankHeight/2, 0);
+
+      const waterHeight = 6;
+      const waterMaterial = new THREE.MeshPhongMaterial({ color: 0x0088ff, opacity: 0.6, transparent: true, shininess: 80, side: THREE.DoubleSide });
+      
+      const fluidGeo = new THREE.BoxGeometry(tankWidth - 0.2, waterHeight, tankDepth - 0.2);
+      fluidGeo.translate(0, waterHeight/2, 0);
+      fluidVolume = new THREE.Mesh(fluidGeo, waterMaterial);
+      fluidVolume.position.y = glassThickness;
+      scene.add(fluidVolume);
+
+      fluidSurface = new THREE.Mesh(new THREE.PlaneGeometry(tankWidth - 0.2, tankDepth - 0.2, 32, 32), waterMaterial);
+      fluidSurface.rotation.x = -Math.PI / 2;
+      fluidSurface.position.y = waterHeight + glassThickness;
+      scene.add(fluidSurface);
+
+      const cubeSize = 2; // Visual size (units)
+      cube = new THREE.Mesh(new THREE.BoxGeometry(cubeSize, cubeSize, cubeSize), new THREE.MeshStandardMaterial({ color: 0xffaa00, roughness: 0.4, metalness: 0.2 }));
+      cube.castShadow = true;
+      cube.receiveShadow = true;
+      cube.position.y = 10;
+      scene.add(cube);
+
+      gravityArrow = new THREE.ArrowHelper(new THREE.Vector3(0, -1, 0), cube.position, 2, 0xdc2626, 0.6, 0.4);
+      scene.add(gravityArrow);
+      buoyancyArrow = new THREE.ArrowHelper(new THREE.Vector3(0, 1, 0), cube.position, 0, 0x16a34a, 0.6, 0.4);
+      scene.add(buoyancyArrow);
+
+      const particleGeo = new THREE.SphereGeometry(0.1, 4, 4);
+      const particleMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.8 });
+      for(let i=0; i<50; i++) {
+        const mesh = new THREE.Mesh(particleGeo, particleMat);
+        mesh.visible = false;
+        scene.add(mesh);
+        particles.push({ mesh, velocity: new THREE.Vector3(), life: 0 });
+      }
+
+      let velY = 0;
+      let posY = 10;
+      const g = 9.8;
+      
+      // Physics Constants correction:
+      // Let visual cubeSize 2 units correspond to 0.2 meters (20cm)
+      const sideLength = 0.2; 
+      const volume = Math.pow(sideLength, 3); // 0.008 m^3
+
+      const raycaster = new THREE.Raycaster();
+      const mouse = new THREE.Vector2();
+      const dragPlane = new THREE.Plane();
+      const planeIntersect = new THREE.Vector3();
+      const dragOffset = new THREE.Vector3();
+
+      onPointerDown = (event) => {
+        const rect = renderer.domElement.getBoundingClientRect();
+        mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+        mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+        raycaster.setFromCamera(mouse, camera);
+        const intersects = raycaster.intersectObject(cube);
+        if (intersects.length > 0) {
+          physicsRef.current.isDragging = true;
+          controls.enabled = false;
+          const normal = new THREE.Vector3();
+          camera.getWorldDirection(normal).negate();
+          dragPlane.setFromNormalAndCoplanarPoint(normal, cube.position);
+          if (raycaster.ray.intersectPlane(dragPlane, planeIntersect)) {
+            dragOffset.subVectors(cube.position, planeIntersect);
+          }
+          velY = 0;
+        }
+      };
+
+      onPointerMove = (event) => {
+        if (!physicsRef.current.isDragging) return;
+        const rect = renderer.domElement.getBoundingClientRect();
+        mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+        mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+        raycaster.setFromCamera(mouse, camera);
+        if (raycaster.ray.intersectPlane(dragPlane, planeIntersect)) {
+          const newPos = new THREE.Vector3().addVectors(planeIntersect, dragOffset);
+          const limitX = (tankWidth/2) - glassThickness - cubeSize/2;
+          const limitZ = (tankDepth/2) - glassThickness - cubeSize/2;
+          newPos.x = Math.max(-limitX, Math.min(limitX, newPos.x));
+          newPos.z = Math.max(-limitZ, Math.min(limitZ, newPos.z));
+          if (newPos.y < cubeSize/2 + glassThickness) newPos.y = cubeSize/2 + glassThickness;
+          cube.position.copy(newPos);
+          posY = newPos.y;
+          physicsRef.current.posY = posY;
+        }
+      };
+
+      onPointerUp = () => {
+        physicsRef.current.isDragging = false;
+        controls.enabled = true;
+      };
+
+      renderer.domElement.addEventListener('pointerdown', onPointerDown);
+      window.addEventListener('pointermove', onPointerMove);
+      window.addEventListener('pointerup', onPointerUp);
+
+      const loop = () => {
+        animationId = requestAnimationFrame(loop);
+        
+        const rho = physicsRef.current.fluidDensity;
+        let col = 0x0088ff;
+        if(rho === 920) col = 0xeab308;
+        if(rho === 1420) col = 0xd97706;
+        if(rho === 700) col = 0xef4444;
+        fluidVolume.material.color.setHex(col);
+        fluidSurface.material.color.setHex(col);
+
+        if (!physicsRef.current.isDragging) {
+            const dt = 1/60;
+            const mass = physicsRef.current.mass;
+            
+            const halfW = (tankWidth - 0.2)/2;
+            const halfD = (tankDepth - 0.2)/2;
+            const inside = Math.abs(cube.position.x) < halfW && Math.abs(cube.position.z) < halfD;
+            
+            const bottom = posY - cubeSize/2;
+            const top = posY + cubeSize/2;
+            const waterLvl = waterHeight + glassThickness; // Correct water level
+            
+            let ratio = 0;
+            if (inside) {
+                if (bottom < waterLvl) {
+                    if (top < waterLvl) ratio = 1;
+                    else ratio = (waterLvl - bottom) / cubeSize;
+                }
+            }
+            
+            const Fg = mass * g;
+            // Corrected Buoyancy Formula without multiplier
+            // Fb = rho_fluid * Volume_displaced * g
+            const Fb = rho * (volume * ratio) * g; 
+
+            physicsRef.current.gravityForce = Fg;
+            physicsRef.current.buoyantForce = Fb;
+
+            const net = Fb - Fg;
+            const acc = net / mass;
+            
+            velY += acc * dt;
+            // Apply drag (viscosity)
+            velY *= (ratio > 0 ? 0.95 : 0.99); 
+            posY += velY * dt;
+
+            const floorY = glassThickness + (inside ? 0.1 : 0);
+            if (posY < cubeSize/2 + floorY) {
+                posY = cubeSize/2 + floorY;
+                velY *= -0.2; // Damped bounce
+            }
+            
+            cube.position.y = posY;
+        } else {
+            const mass = physicsRef.current.mass;
+            physicsRef.current.gravityForce = mass * g;
+            physicsRef.current.buoyantForce = 0; 
+        }
+
+        // Update Arrow Visuals
+        gravityArrow.position.copy(cube.position);
+        gravityArrow.setLength(Math.max(1, physicsRef.current.gravityForce * 0.05), 0.5, 0.3);
+        
+        buoyancyArrow.position.copy(cube.position);
+        buoyancyArrow.setLength(Math.max(0.001, physicsRef.current.buoyantForce * 0.05), 0.5, 0.3);
+
+        if (gravityTextRef.current) gravityTextRef.current.innerText = physicsRef.current.gravityForce.toFixed(1) + ' N';
+        if (buoyancyTextRef.current) buoyancyTextRef.current.innerText = physicsRef.current.buoyantForce.toFixed(1) + ' N';
+
+        particles.forEach(p => {
+            if(p.life > 0) {
+                p.life -= 0.02;
+                p.velocity.y -= 0.1;
+                p.mesh.position.add(p.velocity.clone().multiplyScalar(0.05));
+                p.mesh.opacity = p.life;
+                if(p.mesh.position.y < waterHeight) p.life = 0;
+                if(p.life <= 0) p.mesh.visible = false;
+            }
+        });
+
+        const time = Date.now() * 0.003;
+        const posAttr = fluidSurface.geometry.attributes.position;
+        for(let i=0; i<posAttr.count; i++){
+            const x = posAttr.getX(i);
+            const y = posAttr.getY(i);
+            const z = Math.sin(x * 2 + time) * 0.05 + Math.cos(y * 1.5 + time) * 0.05;
+            posAttr.setZ(i, z);
+        }
+        posAttr.needsUpdate = true;
+
+        controls.update();
+        renderer.render(scene, camera);
+      };
+      
+      loop();
+    };
+
+    init();
+
+    return () => {
+      cancelAnimationFrame(animationId);
+      if (onPointerMove) window.removeEventListener('pointermove', onPointerMove);
+      if (onPointerUp) window.removeEventListener('pointerup', onPointerUp);
+      
+      if (renderer) {
+          if (onPointerDown) renderer.domElement.removeEventListener('pointerdown', onPointerDown);
+          renderer.dispose();
+          if (mountRef.current && renderer.domElement) {
+             mountRef.current.removeChild(renderer.domElement);
+          }
+      }
+    }
+  }, []);
+
+  // Calc Density for display
+  const sideLength = 0.2; 
+  const vol = Math.pow(sideLength, 3);
+  const density = (mass / vol).toFixed(0);
+
+  return (
+    <div className="w-full h-[85vh] max-w-7xl relative bg-slate-900 rounded-3xl shadow-2xl overflow-hidden flex border border-slate-700">
+        <div className={`absolute z-20 h-full bg-slate-800/95 backdrop-blur border-r border-slate-700 transition-all duration-300 flex flex-col ${sidebarOpen ? 'w-80 translate-x-0' : 'w-80 -translate-x-full'}`}>
+            <div className="p-6 space-y-8 overflow-y-auto flex-1">
+                <div className="flex items-center gap-3 text-slate-100 mb-6">
+                    <Waves className="text-sky-400" />
+                    <h3 className="font-bold text-lg">Архимед Заңы</h3>
+                </div>
+
+                <div className="space-y-4">
+                    <div className="space-y-2">
+                        <label className="flex justify-between text-sm font-medium text-slate-300">
+                            <span>Дене Массасы</span>
+                            <span className="text-yellow-400 font-mono">{mass} кг</span>
+                        </label>
+                        <input 
+                            type="range" min="1" max="20" step="0.5" value={mass} 
+                            onChange={(e) => setMass(Number(e.target.value))}
+                            className="w-full accent-yellow-500 h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer"
+                        />
+                        <div className="flex justify-between text-xs text-slate-500 pt-1">
+                            <span>Тығыздық: <span className="text-white font-mono">{density}</span> kg/m³</span>
+                        </div>
+                    </div>
+
+                    <div className="space-y-2">
+                        <label className="block text-sm font-medium text-slate-300 mb-2">
+                            Сұйықтық Түрі
+                        </label>
+                        <div className="grid grid-cols-2 gap-2">
+                            {[
+                                { label: "Су", val: 1000, color: "bg-blue-100 text-blue-700 border-blue-300" },
+                                { label: "Май", val: 920, color: "bg-yellow-100 text-yellow-700 border-yellow-300" },
+                                { label: "Бал", val: 1420, color: "bg-amber-100 text-amber-700 border-amber-300" },
+                                { label: "Бензин", val: 700, color: "bg-red-100 text-red-700 border-red-300" },
+                            ].map((f) => (
+                                <button 
+                                    key={f.val}
+                                    onClick={() => setFluidDensity(f.val)}
+                                    className={`py-2 px-3 rounded-lg text-sm font-bold border transition-all ${fluidDensity === f.val ? `${f.color} ring-2 ring-offset-1` : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-white'}`}
+                                >
+                                    {f.label}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+
+                <div className="bg-slate-900/80 rounded-xl p-4 border border-slate-700 space-y-3 text-sm">
+                    <h4 className="text-slate-400 text-xs uppercase tracking-widest font-bold border-b border-slate-700 pb-2">Есептеулер</h4>
+                    
+                    <div className="flex justify-between items-center">
+                        <span className="text-slate-300 flex items-center gap-2"><ArrowDown size={14} className="text-red-500"/> Ауырлық күші:</span>
+                        <span ref={gravityTextRef} className="font-mono text-red-400 font-bold">0.0 N</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                        <span className="text-slate-300 flex items-center gap-2"><ArrowUp size={14} className="text-green-500"/> Архимед күші:</span>
+                        <span ref={buoyancyTextRef} className="font-mono text-green-400 font-bold">0.0 N</span>
+                    </div>
+                    
+                    <div className="pt-2 border-t border-slate-700 mt-2 text-center">
+                        <span className={`text-xs font-bold px-3 py-1 rounded-full ${density < fluidDensity ? 'bg-green-900 text-green-300' : 'bg-red-900 text-red-300'}`}>
+                            {density < fluidDensity ? 'ДЕНЕ ҚАЛҚИДЫ' : 'ДЕНЕ БАТАДЫ'}
+                        </span>
+                    </div>
+                </div>
+
+                <div className="text-center">
+                    <button 
+                        onClick={() => { setMass(5); setFluidDensity(1000); }}
+                        className="text-xs text-slate-400 hover:text-blue-600 underline cursor-pointer"
+                    >
+                        Параметрлерді қайтару
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <button 
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+            className={`absolute top-4 z-30 p-2 bg-slate-800 text-slate-400 hover:text-white rounded-r-lg border-y border-r border-slate-700 transition-all duration-300 ${sidebarOpen ? 'left-80' : 'left-0'}`}
+        >
+            {sidebarOpen ? <ChevronLeft /> : <Settings />}
+        </button>
+
+        <div className={`flex-1 relative bg-[#eef2f5] transition-all duration-300 ${sidebarOpen ? 'ml-80' : 'ml-0'}`}>
+            <div ref={mountRef} className="absolute inset-0 cursor-grab active:cursor-grabbing" />
+            <div className="absolute top-4 right-6 text-slate-500 font-mono text-xs pointer-events-none select-none mix-blend-multiply">
+                Архимед Заңы Симуляторы v1.0
+            </div>
+            <div className="absolute bottom-6 w-full text-center pointer-events-none">
+                <span className="bg-white/50 backdrop-blur px-4 py-2 rounded-full text-sm text-slate-600 font-medium border border-white/50">
+                    💡 Текшені тінтуірмен ұстап, суға батырып көріңіз
+                </span>
+            </div>
+        </div>
+    </div>
+  );
+}
