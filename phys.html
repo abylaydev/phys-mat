@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="kk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Өткізгіштегі электр тогы - 3D Визуализация</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #0f172a; color: white; font-family: sans-serif; }
+        #canvas-container { width: 100vw; height: 100vh; }
+        .control-panel {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(30, 41, 59, 0.95);
+            padding: 24px;
+            border-radius: 16px;
+            width: 320px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+            border: 1px solid #334155;
+            backdrop-filter: blur(8px);
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        .slider-container { margin-bottom: 20px; }
+        input[type="range"] {
+            width: 100%;
+            cursor: pointer;
+            accent-color: #3b82f6;
+            height: 6px;
+            border-radius: 3px;
+            background: #475569;
+        }
+        .legend-item { display: flex; align-items: center; margin-bottom: 8px; font-size: 0.9em; }
+        .dot { width: 12px; height: 12px; border-radius: 50%; margin-right: 10px; }
+        .dot-electron { background-color: #00ffff; box-shadow: 0 0 5px #00ffff; }
+        .dot-collision { background-color: #ffffff; box-shadow: 0 0 8px #ffffff; }
+        .dot-pass { background-color: #4ade80; box-shadow: 0 0 8px #4ade80; } /* Жасыл нүкте */
+        .dot-ion { background-color: #ff4444; opacity: 0.6; }
+
+        .meter-box {
+            background: #000;
+            border: 2px solid #333;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+        .meter-value {
+            font-family: 'Courier New', monospace;
+            font-size: 2.5em;
+            font-weight: bold;
+            color: #4ade80;
+            text-shadow: 0 0 10px rgba(74, 222, 128, 0.5);
+        }
+        .meter-label {
+            color: #94a3b8;
+            font-size: 0.9em;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 5px;
+        }
+        .status-led {
+            width: 8px;
+            height: 8px;
+            background-color: #ef4444;
+            border-radius: 50%;
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            box-shadow: 0 0 5px #ef4444;
+        }
+        .status-led.active {
+            background-color: #4ade80;
+            box-shadow: 0 0 5px #4ade80;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="control-panel">
+        
+        <div class="meter-box">
+            <div id="statusLed" class="status-led"></div>
+            <div class="meter-label">Ток күші (I)</div>
+            <div id="amperageValue" class="meter-value">0.00 A</div>
+        </div>
+
+        <h2 class="text-xl font-bold mb-4 text-blue-400 border-b border-gray-600 pb-2">Баптаулар</h2>
+        
+        <div class="slider-container">
+            <div class="flex justify-between items-center mb-1">
+                <label class="text-sm font-medium">Кернеу (U)</label>
+                <span id="voltageVal" class="text-xs text-blue-300 font-mono">60 V</span>
+            </div>
+            <input type="range" id="voltageSlider" min="0" max="100" value="60">
+            <p class="text-xs text-gray-400 mt-1">Электрондарды итеруші күш</p>
+        </div>
+
+        <div class="slider-container">
+            <div class="flex justify-between items-center mb-1">
+                <label class="text-sm font-medium">Кедергі (R)</label>
+                <span id="resistanceVal" class="text-xs text-red-300 font-mono">20 Ω</span>
+            </div>
+            <input type="range" id="resistanceSlider" min="0" max="100" value="20">
+            <p class="text-xs text-gray-400 mt-1">Кристалдық тормен соқтығысу</p>
+        </div>
+
+        <div class="slider-container">
+            <div class="flex justify-between items-center mb-1">
+                <label class="text-sm font-medium">Температура (T)</label>
+                <span id="tempVal" class="text-xs text-yellow-300 font-mono">30 K</span>
+            </div>
+            <input type="range" id="tempSlider" min="0" max="100" value="30">
+            <p class="text-xs text-gray-400 mt-1">Жылулық қозғалыс</p>
+        </div>
+
+        <div class="mt-4 border-t border-gray-600 pt-4">
+            <h3 class="font-bold text-sm mb-2 text-gray-300">Шартты белгілер:</h3>
+            <div class="legend-item">
+                <div class="dot dot-pass"></div>
+                <span class="text-green-400 font-bold">Ток ағыны (Заряд өтті!)</span>
+            </div>
+            <div class="legend-item">
+                <div class="dot dot-electron"></div>
+                <span class="text-gray-300">Электрон (e⁻)</span>
+            </div>
+            <div class="legend-item">
+                <div class="dot dot-collision"></div>
+                <span class="text-gray-300">Соқтығысу (Кедергі)</span>
+            </div>
+            
+            <p class="text-xs text-green-300 mt-3 italic bg-slate-800 p-2 rounded">
+                Жасыл шеңбер - бақылау нүктесі. Электрон осы шеңберді қиып өткенде жасыл болып жанады. Бұл токтың өткенін білдіреді.
+            </p>
+        </div>
+    </div>
+
+    <div id="canvas-container"></div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        // 1. Сахнаны құру
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x0f172a); 
+        scene.fog = new THREE.FogExp2(0x0f172a, 0.02);
+
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 15, 35); // Камераны сәл жақындаттым
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+
+        const ambientLight = new THREE.AmbientLight(0x404040, 2);
+        scene.add(ambientLight);
+
+        const pointLight = new THREE.PointLight(0xffffff, 2, 100);
+        pointLight.position.set(10, 10, 10);
+        scene.add(pointLight);
+
+        // 2. Объектілер
+
+        const wireLength = 60;
+        const wireRadius = 8;
+        const wireGeometry = new THREE.CylinderGeometry(wireRadius, wireRadius, wireLength, 32, 1, true);
+        const wireMaterial = new THREE.MeshPhysicalMaterial({
+            color: 0xb87333,
+            metalness: 0.6,
+            roughness: 0.4,
+            transparent: true,
+            opacity: 0.15,
+            side: THREE.DoubleSide
+        });
+        const wire = new THREE.Mesh(wireGeometry, wireMaterial);
+        wire.rotation.z = Math.PI / 2;
+        scene.add(wire);
+
+        const edgeGeometry = new THREE.EdgesGeometry(wireGeometry);
+        const edgeMaterial = new THREE.LineBasicMaterial({ color: 0xb87333, opacity: 0.3, transparent: true });
+        const wireEdges = new THREE.LineSegments(edgeGeometry, edgeMaterial);
+        wireEdges.rotation.z = Math.PI / 2;
+        scene.add(wireEdges);
+
+        // *** ЖАҢА: Қима жазықтық (Бақылау қақпасы) ***
+        // Сыртқы сақина
+        const gateGeometry = new THREE.RingGeometry(wireRadius, wireRadius + 1.5, 32);
+        const gateMaterial = new THREE.MeshBasicMaterial({ color: 0x4ade80, side: THREE.DoubleSide, transparent: true, opacity: 0.8 });
+        const gate = new THREE.Mesh(gateGeometry, gateMaterial);
+        gate.rotation.y = Math.PI / 2; // Y осі бойынша бұру, сымға перпендикуляр болу үшін
+        scene.add(gate);
+        
+        // Ішкі мөлдір диск (визуалды акцент үшін)
+        const gateInnerGeo = new THREE.CircleGeometry(wireRadius, 32);
+        const gateInnerMat = new THREE.MeshBasicMaterial({ color: 0x4ade80, side: THREE.DoubleSide, transparent: true, opacity: 0.05 });
+        const gateInner = new THREE.Mesh(gateInnerGeo, gateInnerMat);
+        gateInner.rotation.y = Math.PI / 2;
+        scene.add(gateInner);
+
+        // Тор иондары
+        const ions = [];
+        const ionGeometry = new THREE.SphereGeometry(0.3, 8, 8);
+        const ionMaterial = new THREE.MeshBasicMaterial({ color: 0xff4444, opacity: 0.4, transparent: true });
+        
+        const spacing = 3.5; 
+        
+        for (let x = -wireLength / 2; x <= wireLength / 2; x += spacing) {
+            for (let y = -wireRadius + 1; y <= wireRadius - 1; y += spacing) {
+                for (let z = -wireRadius + 1; z <= wireRadius - 1; z += spacing) {
+                    if (Math.sqrt(y*y + z*z) < wireRadius - 0.5) {
+                        const ion = new THREE.Mesh(ionGeometry, ionMaterial);
+                        ion.position.set(x, y, z);
+                        scene.add(ion);
+                        ions.push(ion);
+                    }
+                }
+            }
+        }
+
+        // Электрондар
+        const electronCount = 350;
+        const electrons = [];
+        const electronGeometry = new THREE.SphereGeometry(0.25, 8, 8);
+        const electronMaterial = new THREE.MeshBasicMaterial({ color: 0x00ffff });
+
+        const textureLoader = new THREE.TextureLoader();
+        const glowTexture = textureLoader.load('https://threejs.org/examples/textures/sprites/spark1.png');
+        const spriteMaterial = new THREE.SpriteMaterial({ 
+            map: glowTexture, 
+            color: 0x00ffff, 
+            transparent: true, 
+            blending: THREE.AdditiveBlending 
+        });
+
+        for (let i = 0; i < electronCount; i++) {
+            const electronGroup = new THREE.Group();
+            
+            const mesh = new THREE.Mesh(electronGeometry, electronMaterial.clone()); 
+            electronGroup.add(mesh);
+
+            const glow = new THREE.Sprite(spriteMaterial.clone());
+            glow.scale.set(1.5, 1.5, 1.0);
+            electronGroup.add(glow);
+
+            const x = (Math.random() - 0.5) * wireLength;
+            const r = Math.random() * (wireRadius - 1);
+            const theta = Math.random() * Math.PI * 2;
+            const y = r * Math.cos(theta);
+            const z = r * Math.sin(theta);
+
+            electronGroup.position.set(x, y, z);
+            scene.add(electronGroup);
+            
+            electrons.push({
+                group: electronGroup,
+                mesh: mesh,
+                glow: glow,
+                collisionFrames: 0,
+                passFrames: 0 // Қақпадан өту эффектісі
+            });
+        }
+
+        // 3. Логика және Интерфейс
+
+        let voltage = 60;
+        let resistance = 20;
+        let temperature = 30;
+        let smoothedCurrent = 0;
+
+        const voltageSlider = document.getElementById('voltageSlider');
+        const resistanceSlider = document.getElementById('resistanceSlider');
+        const tempSlider = document.getElementById('tempSlider');
+        
+        const voltageVal = document.getElementById('voltageVal');
+        const resistanceVal = document.getElementById('resistanceVal');
+        const tempVal = document.getElementById('tempVal');
+        const amperageValue = document.getElementById('amperageValue');
+        const statusLed = document.getElementById('statusLed');
+
+        function updateUI() {
+            voltageVal.textContent = voltage + " V";
+            resistanceVal.textContent = resistance + " Ω";
+            tempVal.textContent = temperature + " K";
+        }
+
+        voltageSlider.addEventListener('input', (e) => { voltage = parseInt(e.target.value); updateUI(); });
+        resistanceSlider.addEventListener('input', (e) => { resistance = parseInt(e.target.value); updateUI(); });
+        tempSlider.addEventListener('input', (e) => { temperature = parseInt(e.target.value); updateUI(); });
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            const driftSpeedBase = voltage * 0.005; 
+            const randomSpeed = temperature * 0.002;
+            const collisionProb = resistance * 0.001; 
+
+            let totalDriftX = 0; 
+
+            electrons.forEach(electronData => {
+                const p = electronData.group.position;
+                const oldX = p.x; // Ескі координатты сақтау (қиып өтуді тексеру үшін)
+                let dx = 0;
+
+                // 1. Соқтығысу және өту эффектілері
+                if (electronData.collisionFrames > 0) {
+                    electronData.collisionFrames--;
+                    dx = -driftSpeedBase * 0.2; 
+                    p.x += dx; 
+                    
+                    if (electronData.collisionFrames === 0) {
+                        // Эффект біткенде қалыпты түске қайтару
+                        electronData.mesh.material.color.setHex(0x00ffff);
+                        electronData.glow.material.color.setHex(0x00ffff);
+                        electronData.glow.scale.set(1.5, 1.5, 1.0);
+                    }
+                } else if (electronData.passFrames > 0) {
+                     // Қақпадан өту эффектісі
+                    electronData.passFrames--;
+                    dx = driftSpeedBase;
+                    p.x += dx;
+                    
+                    if (electronData.passFrames === 0) {
+                        electronData.mesh.material.color.setHex(0x00ffff);
+                        electronData.glow.material.color.setHex(0x00ffff);
+                        electronData.glow.scale.set(1.5, 1.5, 1.0);
+                    }
+                } else {
+                    // Кедергіге тап болу
+                    if (voltage > 0 && Math.random() < collisionProb) {
+                        electronData.collisionFrames = 15;
+                        electronData.mesh.material.color.setHex(0xffffff); // Ақ
+                        electronData.glow.material.color.setHex(0xffffff);
+                        electronData.glow.scale.set(3.0, 3.0, 1.0);
+                    } else {
+                        // Еркін дрейф
+                        dx = driftSpeedBase;
+                        p.x += dx;
+                    }
+                }
+
+                // *** ЖАҢА: Қақпадан өтуді тексеру ***
+                // Егер электрон бұрын 0-ден кіші болып, қазір 0-ден үлкен не тең болса, ол ортадан өтті
+                if (oldX < 0 && p.x >= 0) {
+                    electronData.passFrames = 10;
+                    electronData.mesh.material.color.setHex(0x4ade80); // Жасыл
+                    electronData.glow.material.color.setHex(0x4ade80);
+                    electronData.glow.scale.set(2.5, 2.5, 1.0);
+                }
+
+                // 2. Жылулық қозғалыс
+                p.x += (Math.random() - 0.5) * randomSpeed;
+                p.y += (Math.random() - 0.5) * randomSpeed;
+                p.z += (Math.random() - 0.5) * randomSpeed;
+
+                // 3. Шекара және Цикл
+                const radiusSq = p.y * p.y + p.z * p.z;
+                if (radiusSq > (wireRadius - 1) * (wireRadius - 1)) {
+                    const angle = Math.atan2(p.z, p.y);
+                    p.y -= Math.cos(angle) * 0.5;
+                    p.z -= Math.sin(angle) * 0.5;
+                }
+
+                if (p.x > wireLength / 2) {
+                    p.x = -wireLength / 2;
+                } else if (p.x < -wireLength / 2) {
+                    p.x = wireLength / 2;
+                }
+
+                totalDriftX += dx;
+            });
+
+            // Ток күшін есептеу
+            let currentInstant = totalDriftX * 2; 
+            if (currentInstant < 0) currentInstant = 0;
+            smoothedCurrent += (currentInstant - smoothedCurrent) * 0.1;
+            amperageValue.innerText = smoothedCurrent.toFixed(2) + " A";
+            
+            if (smoothedCurrent > 0.1) {
+                statusLed.classList.add('active');
+            } else {
+                statusLed.classList.remove('active');
+            }
+
+            // Қақпа пульсациясы (визуалды әдемілік үшін)
+            gate.scale.setScalar(1 + Math.sin(Date.now() * 0.005) * 0.05);
+
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        animate();
+
+    </script>
+</body>
+</html>
